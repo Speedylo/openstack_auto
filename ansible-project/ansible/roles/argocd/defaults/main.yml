@@ -10,3 +10,8 @@ argocd_release_name: argocd
 # explicitly (mirrors how OPENSTACK_SSH_KEY has no default in inventory).
 gitops_repo_url: "{{ lookup('env', 'GITOPS_REPO_URL') }}"
 gitops_repo_revision: "{{ lookup('env', 'GITOPS_REPO_REVISION') | default('main', true) }}"
+
+# Where the Argo CD deploy key is generated/persisted on the target
+# host. Stable across reruns on purpose -- see the `creates:` note in
+# tasks/main.yml.
+gitops_ssh_key_path: "/home/{{ ansible_user }}/.ssh/argocd-deploy-key"

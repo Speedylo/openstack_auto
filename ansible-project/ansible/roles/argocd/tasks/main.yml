@@ -90,6 +90,84 @@
     -n {{ argocd_namespace }} --timeout=180s
   changed_when: false
 
+# gitops_repo_url is an SSH URL. Unlike HTTPS, SSH has no anonymous-read
+# mode for a public repo -- the transport authenticates the client
+# before the git server even looks at repo visibility. Argo CD's
+# repo-server also doesn't use the host's ssh-agent (that's exactly
+# the "SSH_AUTH_SOCK not-specified" error from the first attempt at
+# this) -- it needs its own key registered as a credential Secret it
+# controls. `creates:` makes key generation idempotent across reruns:
+# once a key exists at gitops_ssh_key_path, it's reused rather than
+# regenerated, so a previously-registered deploy key on the git host
+# doesn't get silently invalidated by a later Ansible run.
+# ssh-keygen doesn't create parent directories -- ~/.ssh almost
+# certainly already exists (it's how Ansible is reaching this host at
+# all), but not guaranteed for every possible ansible_user/auth setup.
+- name: Ensure ~/.ssh exists
+  become_user: "{{ kube_user }}"
+  file:
+    path: "/home/{{ kube_user }}/.ssh"
+    state: directory
+    mode: "0700"
+
+- name: Generate an Argo CD deploy key, if one doesn't already exist
+  become_user: "{{ kube_user }}"
+  command: >
+    ssh-keygen -t ed25519 -f {{ gitops_ssh_key_path }} -N ""
+    -C "argocd-deploy-key ({{ gitops_repo_url }})"
+  args:
+    creates: "{{ gitops_ssh_key_path }}"
+
+- name: Read the generated private key
+  become_user: "{{ kube_user }}"
+  slurp:
+    src: "{{ gitops_ssh_key_path }}"
+  register: gitops_ssh_privkey_slurp
+  no_log: true
+
+- name: Read the generated public key
+  become_user: "{{ kube_user }}"
+  slurp:
+    src: "{{ gitops_ssh_key_path }}.pub"
+  register: gitops_ssh_pubkey_slurp
+
+# Scoped to this exact repo URL (secret-type: repository), not a
+# URL-prefix credential template (secret-type: repo-creds) that would
+# apply to every repo under the same host -- this key should only ever
+# be trusted for this one repo.
+- name: Register the deploy key as an Argo CD repository credential
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: gitops-repo-creds
+        namespace: "{{ argocd_namespace }}"
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      stringData:
+        type: git
+        url: "{{ gitops_repo_url }}"
+        sshPrivateKey: "{{ gitops_ssh_privkey_slurp.content | b64decode }}"
+  no_log: true
+
+# Argo CD ships a default known_hosts ConfigMap already covering
+# github.com/gitlab.com/bitbucket.org/ssh.dev.azure.com. If
+# gitops_repo_url is on a self-hosted git server, this Application will
+# fail with a host-key verification error instead of an auth error --
+# if that happens, extend argocd-ssh-known-hosts-cm in the argocd
+# namespace with that host's key (`ssh-keyscan <host>`).
+- name: Show the public key that needs to be added as a deploy key
+  debug:
+    msg: >-
+      Add this as a READ-ONLY deploy key on {{ gitops_repo_url }}, if it
+      isn't already registered there:
+      {{ gitops_ssh_pubkey_slurp.content | b64decode | trim }}
+
 - name: Render the root-app (App-of-Apps) manifest
   become_user: "{{ kube_user }}"
   template:
