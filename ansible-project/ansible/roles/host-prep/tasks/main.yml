@@ -1,0 +1,97 @@
+---
+# Phase 1 equivalent: kernel tuning, DNS, systemd manager timeouts.
+# Every task here uses an idempotent module instead of raw
+# `sh -c "echo ... >> file"`, so re-running this role does not
+# duplicate lines or reset already-correct values.
+
+- name: Update apt cache and upgrade packages
+  apt:
+    update_cache: true
+    upgrade: dist
+    cache_valid_time: 3600
+
+- name: Set inotify watch/instance limits (runtime)
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    reload: true
+  loop:
+    - { name: "fs.inotify.max_user_watches", value: "524288" }
+    - { name: "fs.inotify.max_user_instances", value: "512" }
+    - { name: "net.ipv4.ip_forward", value: "1" }
+    - { name: "net.ipv4.conf.all.forwarding", value: "1" }
+
+- name: Persist inotify and forwarding settings in /etc/sysctl.d
+  # Using a dedicated drop-in file instead of appending to
+  # /etc/sysctl.conf avoids duplicate lines on re-run and keeps
+  # our overrides clearly separated from distro defaults.
+  copy:
+    dest: /etc/sysctl.d/99-openstack-helm.conf
+    content: |
+      fs.inotify.max_user_watches=524288
+      fs.inotify.max_user_instances=512
+      net.ipv4.ip_forward=1
+      net.ipv4.conf.all.forwarding=1
+    mode: "0644"
+  notify: reload sysctl
+
+- name: Ensure /etc/systemd/system.conf.d exists
+  file:
+    path: /etc/systemd/system.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Cap global systemd manager start/stop timeouts
+  copy:
+    dest: /etc/systemd/system.conf.d/timeout.conf
+    content: |
+      [Manager]
+      DefaultTimeoutStopSec=10s
+      DefaultTimeoutStartSec=30s
+    mode: "0644"
+  notify: daemon-reload systemd
+
+- name: Check whether Tailscale is installed on this host
+  command: which tailscale
+  register: tailscale_bin
+  changed_when: false
+  failed_when: false
+
+- name: Disable Tailscale's DNS management (accept-dns)
+  # Root cause of the "DNS settings not persisted" issue: tailscaled
+  # continuously manages /etc/resolv.conf itself (MagicDNS at
+  # 100.100.100.100) whenever accept-dns is enabled (the default),
+  # silently overwriting our static file below shortly after every
+  # write — Ansible's `changed: true` on that task was real, it just
+  # didn't stick. Safe to disable here since hostname resolution for
+  # Horizon/noVNC/instance access already goes through static
+  # /etc/hosts entries, not Tailscale MagicDNS.
+  command: tailscale set --accept-dns=false
+  when: tailscale_bin.rc == 0
+  changed_when: false
+
+- name: Set static DNS resolvers
+  # Mirrors the DNS fix from the DevStack troubleshooting reference:
+  # avoids systemd-resolved binding issues seen in this environment.
+  # Must run after the Tailscale accept-dns task above, or tailscaled
+  # will overwrite this file again shortly after it's written.
+  copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 8.8.8.8
+      nameserver 1.1.1.1
+    mode: "0644"
+  when: not manage_dns_via_systemd_resolved | default(false)
+
+- name: Ensure the local hostname resolves via /etc/hosts
+  # Prevents "sudo: unable to resolve host <hostname>" warnings.
+  # sudo looks up the machine's own hostname for logging; overwriting
+  # /etc/resolv.conf above can leave that lookup with nothing to fall
+  # back on if /etc/hosts doesn't already map it (cloud images usually
+  # do this via cloud-init, but we don't want to depend on that).
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    line: "127.0.1.1 {{ ansible_hostname }}"
+    state: present

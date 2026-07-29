@@ -1,0 +1,16 @@
+[Unit]
+Description=Clean K3s and Ceph Loop mounts before network goes down
+DefaultDependencies=no
+Before=shutdown.target reboot.target poweroff.target k3s.service
+After=network-online.target
+Requires=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+ExecStop=/usr/local/bin/clean-shutdown.sh
+TimeoutStartSec=10
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

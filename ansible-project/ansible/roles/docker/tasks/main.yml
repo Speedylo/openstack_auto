@@ -1,0 +1,21 @@
+---
+- name: Check if Docker is already installed
+  command: docker --version
+  register: docker_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Docker via get.docker.com (first run only)
+  shell: |
+    curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+    sh /tmp/get-docker.sh
+  when: docker_check.rc != 0
+
+- name: Add {{ kube_user }} to the docker group
+  user:
+    name: "{{ kube_user }}"
+    groups: docker
+    append: true
+  # Note: takes effect on next login/`newgrp docker`, same as the
+  # original script — Ansible can't retroactively change the
+  # current shell's group membership either.

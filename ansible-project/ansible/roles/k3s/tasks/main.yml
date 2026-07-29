@@ -1,0 +1,84 @@
+---
+# Phase 2 equivalent: k3s install, custom systemd unit override,
+# and kubeconfig setup for the deploying user.
+
+- name: Check if k3s binary is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Install k3s (first run only)
+  shell: |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="{{ k3s_version }}" \
+      sh -s - server --disable traefik --disable servicelb
+  when: not k3s_binary.stat.exists
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Deploy custom k3s systemd unit (restart policy, resource limits)
+  template:
+    src: k3s.service.j2
+    dest: /etc/systemd/system/k3s.service
+    mode: "0644"
+  notify: daemon-reload systemd
+  register: k3s_unit
+
+- name: Reload and restart k3s if the unit file changed
+  systemd:
+    name: k3s
+    daemon_reload: true
+    state: restarted
+    enabled: true
+  when: k3s_unit.changed
+
+- name: Ensure k3s is enabled and running
+  systemd:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Wait for Kubernetes API to accept a node listing
+  command: k3s kubectl get node
+  register: k3s_api_check
+  retries: 30
+  delay: 2
+  until: k3s_api_check.rc == 0
+  changed_when: false
+
+- name: Ensure ~/.kube directory exists for {{ kube_user }}
+  file:
+    path: "/home/{{ kube_user }}/.kube"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0700"
+
+- name: Copy k3s kubeconfig to user's home directory
+  copy:
+    remote_src: true
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ kubeconfig_path }}"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0600"
+
+- name: Ensure KUBECONFIG is exported in user's bashrc
+  lineinfile:
+    path: "/home/{{ kube_user }}/.bashrc"
+    line: "export KUBECONFIG={{ kubeconfig_path }}"
+    create: true
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+
+- name: Wait for node to report Ready
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: kubectl wait --for=condition=Ready node --all --timeout=60s
+  changed_when: false
+
+- name: Install Helm (if not already present)
+  shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm

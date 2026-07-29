@@ -1,0 +1,12 @@
+---
+argocd_namespace: argocd
+argocd_chart_version: ">=7.0.0"
+argocd_release_name: argocd
+
+# Git repo Argo CD's App-of-Apps (root-app) reads from. This is the SAME
+# repo this Ansible project lives in — root-app.yaml points at the
+# gitops/apps/ directory within it. No default on purpose: Argo CD can't
+# usefully bootstrap against a placeholder URL, so this must be set
+# explicitly (mirrors how OPENSTACK_SSH_KEY has no default in inventory).
+gitops_repo_url: "{{ lookup('env', 'GITOPS_REPO_URL') }}"
+gitops_repo_revision: "{{ lookup('env', 'GITOPS_REPO_REVISION') | default('main', true) }}"

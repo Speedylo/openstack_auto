@@ -1,0 +1,76 @@
+#!/bin/bash
+
+(
+  # Ensure Helm and Kubectl have explicit access to cluster credentials
+  export KUBECONFIG={{ kubeconfig_path }}
+
+  echo "Background task: Waiting for Kubernetes API..."
+  until kubectl get nodes &>/dev/null; do sleep 2; done
+
+  echo "Background task: Checking whether the openstack namespace exists yet..."
+  if ! kubectl get namespace openstack &>/dev/null; then
+    echo "Background task: openstack namespace not found — no chart deployment"
+    echo "Background task: on this host yet. Skipping MariaDB/Placement"
+    echo "Background task: recovery; nothing to recover."
+    exit 0
+  fi
+
+  echo "Background task: Cleaning stale MariaDB crash lock files..."
+  sudo rm -f /var/lib/kubelet/plugins/kubernetes.io/csi/rook-ceph.rbd.csi.ceph.com/*/globalmount/*/tc.log 2>/dev/null || true
+  sudo rm -f /var/lib/kubelet/pods/*/volumes/kubernetes.io~csi/pvc-*/mount/tc.log 2>/dev/null || true
+  sudo find /var/lib/kubelet/ -name "grastate.dat" -exec sed -i 's/safe_to_bootstrap: 0/safe_to_bootstrap: 1/' {} + 2>/dev/null || true
+
+  echo "Background task: Recycling MariaDB pod to apply clean state..."
+  kubectl delete pod -n openstack mariadb-server-0 --force --grace-period=0 2>/dev/null || true
+
+  echo "Background task: Waiting for MariaDB to become fully ready..."
+  if ! kubectl rollout status statefulset/mariadb-server -n openstack --timeout=120s; then
+      echo "Background task: MariaDB stuck. Cleaning tc.log on active mount and recycling..."
+      sudo rm -f /var/lib/kubelet/pods/*/volumes/kubernetes.io~csi/pvc-*/mount/tc.log 2>/dev/null || true
+      kubectl delete pod -n openstack mariadb-server-0 --force --grace-period=0
+      kubectl rollout status statefulset/mariadb-server -n openstack --timeout=120s
+  fi
+
+  echo "Background task: Cleaning up previous Placement DB jobs..."
+  kubectl delete job -n openstack placement-db-init placement-db-sync --ignore-not-found
+
+  echo "Background task: Triggering Placement Helm upgrade..."
+  export OVERRIDES_DIR={{ workspace_dir }}/openstack-helm/overrides
+  helm upgrade placement {{ workspace_dir }}/openstack-helm/placement \
+    --namespace=openstack \
+    --kubeconfig="$KUBECONFIG" \
+    -f ${OVERRIDES_DIR}/placement/2025.1-ubuntu_noble.yaml
+
+  echo "Background task: Waiting for placement-db-sync job to exist and finish..."
+  until kubectl get job/placement-db-sync -n openstack &>/dev/null; do sleep 2; done
+  kubectl wait --for=condition=complete job/placement-db-sync -n openstack --timeout=120s || true
+
+  echo "Background task: Restarting Placement API pods..."
+  kubectl delete pods -n openstack -l application=placement,component=api
+
+  echo "Background task: Restarting Nova Conductor and Scheduler..."
+  kubectl rollout restart deployment/nova-conductor -n openstack
+  kubectl rollout restart deployment/nova-scheduler -n openstack
+
+  echo "Background task: OpenStack control plane recovery complete."
+) &
+
+echo "Waiting for br-ex interface to be created by Neutron..."
+while ! ip link show br-ex >/dev/null 2>&1; do
+    sleep 2
+done
+echo "br-ex detected. Applying network plumbing..."
+
+ip addr add {{ br_ex_cidr }} dev br-ex 2>/dev/null || true
+ip link set br-ex up
+
+# -C (check) before -I/-A avoids duplicate rules accumulating across
+# repeated restarts of this service (e.g. after every reboot).
+iptables -C FORWARD -i br-ex -o {{ public_egress_interface }} -j ACCEPT 2>/dev/null || \
+  iptables -I FORWARD 1 -i br-ex -o {{ public_egress_interface }} -j ACCEPT
+iptables -C FORWARD -i {{ public_egress_interface }} -o br-ex -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || \
+  iptables -I FORWARD 2 -i {{ public_egress_interface }} -o br-ex -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -t nat -C POSTROUTING -s {{ br_ex_network }} -o {{ public_egress_interface }} -j MASQUERADE 2>/dev/null || \
+  iptables -t nat -A POSTROUTING -s {{ br_ex_network }} -o {{ public_egress_interface }} -j MASQUERADE
+
+echo "Plumbing successfully applied."

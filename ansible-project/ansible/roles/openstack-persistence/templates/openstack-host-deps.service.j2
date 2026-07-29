@@ -1,0 +1,17 @@
+[Unit]
+Description=Setup Ephemeral Host Dependencies for OpenStack-Helm
+DefaultDependencies=no
+After=local-fs.target
+Before=k3s.service shutdown.target reboot.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/mkdir -p /var/lib/openstack-helm
+ExecStartPre=/bin/sh -c '[ -f {{ ceph_loop_image }} ] || /usr/bin/truncate -s {{ ceph_loop_size_gb }}G {{ ceph_loop_image }}'
+ExecStart=/sbin/losetup {{ loop_device }} {{ ceph_loop_image }}
+ExecStartPost=/bin/sh -c "/sbin/ip link add {{ provider_bridge_interface }} type dummy 2>/dev/null || true"
+ExecStartPost=/sbin/ip link set {{ provider_bridge_interface }} up
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

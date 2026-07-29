@@ -1,0 +1,90 @@
+---
+# Phase 1/1B/1C equivalent: the loop-backed Ceph disk, the
+# openstack-host-deps / openstack-network-plumbing / clean-shutdown
+# systemd units, and network plumbing script.
+#
+# Key change from the raw script: the destructive wipefs/dd step
+# only runs the FIRST time the loop image is created, guarded by
+# a `creates:`-style check — re-running this playbook will never
+# again wipe an existing Ceph OSD backing file.
+
+- name: Ensure openstack-helm state directory exists
+  file:
+    path: /var/lib/openstack-helm
+    state: directory
+    mode: "0755"
+
+- name: Check whether the Ceph loop-backed image already exists
+  stat:
+    path: "{{ ceph_loop_image }}"
+  register: ceph_loop_image_stat
+
+- name: Create the Ceph loop-backed disk image (first run only)
+  command: "truncate -s {{ ceph_loop_size_gb }}G {{ ceph_loop_image }}"
+  when: not ceph_loop_image_stat.stat.exists
+
+- name: Deploy openstack-host-deps systemd unit
+  template:
+    src: openstack-host-deps.service.j2
+    dest: /etc/systemd/system/openstack-host-deps.service
+    mode: "0644"
+  notify: daemon-reload systemd
+
+- name: Enable and start openstack-host-deps service
+  systemd:
+    name: openstack-host-deps.service
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wipe filesystem signatures on the loop device (first run only)
+  # Only executed the moment the backing image itself was just
+  # created above — never runs again on subsequent playbook runs,
+  # which is the exact gap that existed in the original bash script.
+  when: not ceph_loop_image_stat.stat.exists
+  block:
+    - name: wipefs the newly created loop device
+      command: "wipefs -a {{ loop_device }}"
+    - name: zero the first 100MB of the loop device
+      command: "dd if=/dev/zero of={{ loop_device }} bs=1M count=100 conv=fdatasync"
+
+- name: Deploy network plumbing script
+  template:
+    src: openstack-network-plumbing.sh.j2
+    dest: /usr/local/bin/openstack-network-plumbing.sh
+    mode: "0755"
+
+- name: Deploy openstack-network-plumbing systemd unit
+  template:
+    src: openstack-network-plumbing.service.j2
+    dest: /etc/systemd/system/openstack-network-plumbing.service
+    mode: "0644"
+  notify: daemon-reload systemd
+
+- name: Enable openstack-network-plumbing service
+  systemd:
+    name: openstack-network-plumbing.service
+    enabled: true
+    daemon_reload: true
+    # Not started here: it depends on k3s/Neutron being deployed
+    # first. Ansible enables it for boot; the k3s role or a later
+    # GitOps step is responsible for the initial (post-chart) start.
+
+- name: Deploy clean-shutdown script
+  copy:
+    src: clean-shutdown.sh
+    dest: /usr/local/bin/clean-shutdown.sh
+    mode: "0755"
+
+- name: Deploy clean-shutdown systemd unit
+  template:
+    src: clean-shutdown.service.j2
+    dest: /etc/systemd/system/clean-shutdown.service
+    mode: "0644"
+  notify: daemon-reload systemd
+
+- name: Enable clean-shutdown service
+  systemd:
+    name: clean-shutdown.service
+    enabled: true
+    daemon_reload: true

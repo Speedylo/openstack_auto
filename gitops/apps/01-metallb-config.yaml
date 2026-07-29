@@ -1,0 +1,35 @@
+---
+# Replaces the `for i in {1..10}; do kubectl apply ... || sleep 5; done`
+# retry loop from Phase 4: the MetalLB validating webhook isn't ready
+# the instant the controller Deployment is (which is what wave 0's
+# health check actually observes), so the very first sync attempt here
+# can still get rejected. Argo CD's own retry/backoff below is a
+# declarative equivalent of that loop.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metallb-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: "{{ GITOPS_REPO_URL }}"
+    targetRevision: "{{ GITOPS_REPO_REVISION }}"
+    path: gitops/manifests/metallb-config
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: metallb-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m

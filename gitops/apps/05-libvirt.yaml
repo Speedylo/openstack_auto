@@ -1,0 +1,35 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: libvirt
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      path: libvirt
+      helm:
+        releaseName: libvirt
+        valueFiles:
+          - $upstream/values_overrides/libvirt/2025.1-ubuntu_noble.yaml
+        parameters:
+          - name: conf.ceph.enabled
+            value: "true"
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      ref: upstream
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

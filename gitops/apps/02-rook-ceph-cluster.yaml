@@ -1,0 +1,200 @@
+---
+# cephClusterSpec below is ceph-rook.sh's /tmp/ceph.yaml, ported as-is,
+# with exactly two intentional deviations -- both were previously
+# applied as a post-hoc `kubectl patch` by the working script's Phase 5
+# background watcher, and are templated directly here instead:
+#   - mon.count 3 -> 1, mgr.count 3 -> 1 (single-node cluster: 3 mons
+#     with allowMultiplePerNode left false would never reach quorum on
+#     one node)
+#   - storage.devices (exact device name) -> storage.deviceFilter (regex)
+#     matching /dev/loop100, which is what the original patch itself
+#     switched to
+# configOverride's mon_allow_pool_size_one/osd_pool_default_size=1 are
+# NOT something I added -- they're already in the original ceph.yaml,
+# and they're why replicated.size: 1 below is even accepted; Ceph
+# refuses size-1 pools without that override.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rook-ceph-cluster
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.rook.io/release
+    chart: rook-ceph-cluster
+    targetRevision: v1.19.3
+    helm:
+      releaseName: rook-ceph-cluster
+      values: |
+        operatorNamespace: rook-ceph
+        clusterName: ceph
+        configOverride: |
+          [global]
+          mon_allow_pool_delete = true
+          mon_allow_pool_size_one = true
+          osd_pool_default_size = 1
+          osd_pool_default_min_size = 1
+          mon_warn_on_pool_no_redundancy = false
+          auth_allow_insecure_global_id_reclaim = false
+        toolbox:
+          enabled: true
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+        monitoring:
+          enabled: false
+          metricsDisabled: true
+        pspEnable: false
+        cephClusterSpec:
+          cephVersion:
+            image: quay.io/ceph/ceph:v20.2.1
+            allowUnsupported: false
+          dataDirHostPath: /var/lib/rook
+          skipUpgradeChecks: false
+          continueUpgradeAfterChecksEvenIfNotHealthy: false
+          waitTimeoutForHealthyOSDInMinutes: 10
+          mon:
+            count: 1              # patched down from ceph-rook.sh's default of 3
+            allowMultiplePerNode: true
+          mgr:
+            count: 1              # patched down from ceph-rook.sh's default of 3
+            allowMultiplePerNode: false
+            modules:
+              - name: pg_autoscaler
+                enabled: true
+              - name: dashboard
+                enabled: false
+              - name: nfs
+                enabled: false
+          dashboard:
+            enabled: true
+            ssl: true
+          network:
+            connections:
+              encryption:
+                enabled: false
+              compression:
+                enabled: false
+              requireMsgr2: false
+            provider: host
+          crashCollector:
+            disable: true
+          logCollector:
+            enabled: true
+            periodicity: daily
+            maxLogSize: 500M
+          cleanupPolicy:
+            confirmation: ""
+            sanitizeDisks:
+              method: quick
+              dataSource: zero
+              iteration: 1
+            allowUninstallWithVolumes: false
+          removeOSDsIfOutAndSafeToRemove: false
+          priorityClassNames:
+            mon: system-node-critical
+            osd: system-node-critical
+            mgr: system-cluster-critical
+          storage:
+            useAllNodes: true
+            useAllDevices: false
+            deviceFilter: "^loop100$"   # patched from ceph-rook.sh's exact `devices: [{name: /dev/loop100}]`
+          disruptionManagement:
+            managePodBudgets: true
+            osdMaintenanceTimeout: 30
+            pgHealthCheckTimeout: 0
+          healthCheck:
+            daemonHealth:
+              mon:
+                disabled: false
+                interval: 45s
+              osd:
+                disabled: false
+                interval: 60s
+              status:
+                disabled: false
+                interval: 60s
+            livenessProbe:
+              mon:
+                disabled: false
+              mgr:
+                disabled: false
+              osd:
+                disabled: false
+        ingress:
+          dashboard: {}
+        cephBlockPools:
+          - name: rbd
+            namespace: ceph
+            spec:
+              failureDomain: host
+              replicated:
+                size: 1
+            storageClass:
+              enabled: true
+              name: general
+              isDefault: true
+              reclaimPolicy: Delete
+              allowVolumeExpansion: true
+              volumeBindingMode: "Immediate"
+              parameters:
+                imageFormat: "2"
+                imageFeatures: layering
+                csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+                csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+                csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+                csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+                csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+                csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+                csi.storage.k8s.io/fstype: ext4
+        cephFileSystems: []
+        cephObjectStores:
+          - name: default
+            namespace: ceph
+            spec:
+              allowUsersInNamespaces:
+                - "*"
+              metadataPool:
+                failureDomain: host
+                replicated:
+                  size: 1
+              dataPool:
+                failureDomain: host
+                replicated:
+                  size: 1
+              preservePoolsOnDelete: true
+              gateway:
+                port: 8080
+                instances: 1
+                priorityClassName: system-cluster-critical
+            storageClass:
+              enabled: true
+              name: ceph-bucket
+              reclaimPolicy: Delete
+              volumeBindingMode: "Immediate"
+              parameters:
+                region: us-east-1
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ceph
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m

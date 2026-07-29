@@ -1,0 +1,24 @@
+---
+# Phase 5's "Post-Ceph Configuration" step: k3s ships with `local-path`
+# as the cluster's default StorageClass. rook-ceph-cluster's `general`
+# StorageClass (wave 2) also sets isDefault: true, and Kubernetes
+# rejects/warns on two default StorageClasses existing at once (PVCs
+# with no storageClassName become ambiguous). This flips local-path's
+# default annotation off, same as the original script's
+# `kubectl patch storageclass local-path ...`.
+#
+# NOTE: this object is created by k3s itself, not by us -- applying a
+# manifest for a resource we don't otherwise own means Argo CD takes
+# over its `metadata.annotations` field going forward (standard
+# server-side-apply field ownership; k3s isn't fighting Argo CD for
+# this specific field, but be aware Argo now manages this object at
+# all if that's ever surprising in `argocd app diff`).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer

@@ -1,0 +1,106 @@
+---
+# Bootstraps the GitOps layer: installs Argo CD, then hands off control
+# of everything else (Phases 4-9 equivalents) to the root-app
+# Application, which syncs gitops/apps/ from this same git repo.
+# From this point on, cluster state is converged by Argo CD, not by
+# further Ansible runs or imperative helm/kubectl commands.
+
+- name: Fail fast if gitops_repo_url is not set
+  assert:
+    that:
+      - gitops_repo_url is defined
+      - gitops_repo_url | length > 0
+    fail_msg: >-
+      gitops_repo_url is empty. Export GITOPS_REPO_URL to the git URL
+      this repo is pushed to (Argo CD needs to be able to reach it from
+      inside the cluster — a public HTTPS URL, or a private one with
+      credentials registered in Argo CD separately).
+
+- name: Install Python libraries required by kubernetes.core modules
+  # kubernetes.core.k8s needs the `kubernetes` python client library
+  # plus `jsonpatch` (used internally even for state: present, not just
+  # explicit patch operations) -- neither ships on a base Ubuntu image.
+  # kubernetes.core.helm_repository (used earlier in helm-workspace)
+  # didn't hit this because it's a thin wrapper around the `helm`
+  # binary itself and never talks to the API directly. Note:
+  # kubernetes.core.helm's own docs list only the `helm` CLI as a
+  # requirement, not this library -- installing it here anyway since
+  # it's shared across the collection and cheap to have regardless.
+  apt:
+    name:
+      - python3-kubernetes
+      - python3-jsonpatch
+    state: present
+    update_cache: true
+
+- name: Create argocd namespace
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  kubernetes.core.k8s:
+    name: "{{ argocd_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+
+- name: Add the argo-helm repository
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+
+- name: Install/upgrade Argo CD
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  kubernetes.core.helm:
+    name: "{{ argocd_release_name }}"
+    chart_ref: argo/argo-cd
+    chart_version: "{{ argocd_chart_version }}"
+    release_namespace: "{{ argocd_namespace }}"
+    create_namespace: true
+    wait: true
+    values:
+      # Single-node lab cluster: HA replica counts in the default chart
+      # values would just sit Pending with no second/third node to
+      # schedule onto.
+      redis-ha:
+        enabled: false
+      controller:
+        replicas: 1
+      server:
+        replicas: 1
+        # No public DNS/cert set up yet for Argo CD's own UI at this
+        # stage — plaintext until that's addressed. Do not carry this
+        # into anything beyond a lab environment.
+        insecure: true
+      repoServer:
+        replicas: 1
+      applicationSet:
+        replicas: 1
+
+- name: Wait for the Argo CD application controller StatefulSet to be ready
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: >
+    kubectl rollout status statefulset/{{ argocd_release_name }}-application-controller
+    -n {{ argocd_namespace }} --timeout=180s
+  changed_when: false
+
+- name: Render the root-app (App-of-Apps) manifest
+  become_user: "{{ kube_user }}"
+  template:
+    src: root-app.yaml.j2
+    dest: "/home/{{ kube_user }}/root-app.yaml"
+    mode: "0644"
+
+- name: Apply the root-app — from here on, Argo CD owns Phases 4-9
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  kubernetes.core.k8s:
+    state: present
+    src: "/home/{{ kube_user }}/root-app.yaml"

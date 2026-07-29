@@ -1,0 +1,39 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mariadb
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      path: mariadb
+      helm:
+        releaseName: mariadb
+        valueFiles:
+          - $upstream/values_overrides/mariadb/2025.1-ubuntu_noble.yaml
+          - $local/gitops/values/mariadb-local.yaml
+        parameters:
+          - name: pod.replicas.server
+            value: "1"
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      ref: upstream
+    - repoURL: "{{ GITOPS_REPO_URL }}"
+      targetRevision: "{{ GITOPS_REPO_REVISION }}"
+      ref: local
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

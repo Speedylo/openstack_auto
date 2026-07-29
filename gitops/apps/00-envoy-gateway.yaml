@@ -1,0 +1,31 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: envoy-gateway
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  # OCI Helm source. Syntax below matches current Argo CD (2.10+) native
+  # OCI support (`oci://<registry>/<namespace>` + separate `chart:` field).
+  # VERIFY against your Argo CD version — earlier releases required
+  # `helm.oci: true` under `source.helm` instead; check `argocd version`.
+  source:
+    repoURL: oci://registry-1.docker.io/envoyproxy
+    chart: gateway-helm
+    targetRevision: v1.7.0
+    helm:
+      releaseName: eg
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

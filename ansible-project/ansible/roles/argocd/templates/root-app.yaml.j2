@@ -1,0 +1,29 @@
+---
+# Rendered copy of gitops/bootstrap/root-app.yaml with the repo
+# URL/revision filled in. Keep this template's structure in sync with
+# that file if the app-of-apps design changes — this is the one place
+# that actually gets applied to the cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: {{ argocd_namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ gitops_repo_url }}
+    targetRevision: {{ gitops_repo_revision }}
+    path: gitops/apps
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ argocd_namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

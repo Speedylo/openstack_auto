@@ -1,0 +1,32 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keystone
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      path: keystone
+      helm:
+        releaseName: keystone
+        valueFiles:
+          - $upstream/values_overrides/keystone/2025.1-ubuntu_noble.yaml
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      ref: upstream
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

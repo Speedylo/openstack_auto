@@ -1,0 +1,16 @@
+# CAUTION: helm merges valueFiles as maps, but REPLACES arrays wholesale
+# (unlike the original script's `cat >> file`, which just appended raw
+# YAML text — itself fragile if pod.init_containers already existed
+# earlier in the same file). If the upstream 2025.1-ubuntu_noble.yaml
+# override already sets pod.init_containers, this file will silently
+# clobber it instead of appending to it. Verify with:
+#   helm template mariadb <path> -f <upstream-override> -f mariadb-local.yaml
+# and diff the rendered init containers before trusting this in prod.
+pod:
+  init_containers:
+    - name: remove-tc-log
+      image: busybox:latest
+      command: ["sh", "-c", "rm -f /var/lib/mysql/tc.log"]
+      volumeMounts:
+        - name: mariadb-data
+          mountPath: /var/lib/mysql

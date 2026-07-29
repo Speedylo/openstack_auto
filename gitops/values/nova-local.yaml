@@ -1,0 +1,11 @@
+# Ported verbatim from Phase 6's consolidated Nova hardware + VNC overrides.
+conf:
+  nova:
+    libvirt:
+      virt_type: qemu
+      cpu_mode: none
+    DEFAULT:
+      compute_driver: libvirt.LibvirtDriver
+      novncproxy_base_url: http://novnc.openstack.internal/vnc_auto.html
+    vnc:
+      novncproxy_base_url: http://novnc.openstack.internal/vnc_auto.html

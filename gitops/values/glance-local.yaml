@@ -1,0 +1,5 @@
+# Ported from Phase 6's glance_pvc_storage.yaml.
+storage: pvc
+volume:
+  class_name: general
+  size: 10Gi

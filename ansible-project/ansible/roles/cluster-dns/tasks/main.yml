@@ -1,0 +1,71 @@
+---
+# Phase 8 equivalent: hands host DNS resolution off from the static
+# Phase-1 resolvers to systemd-resolved forwarding cluster-internal
+# domains (*.svc.cluster.local) to CoreDNS, while falling back to
+# normal upstream DNS for everything else.
+#
+# This role is self-skipping by design: it can't run meaningfully
+# until CoreDNS exists, which depends on Argo CD having synced the
+# cluster (or at minimum k3s's built-in CoreDNS being up). Rather
+# than requiring a second manual invocation once the cluster is
+# ready, this role checks first and no-ops cleanly if it isn't —
+# safe to leave in the default `site.yml` run permanently, and it
+# will "self-heal" into place on a later run once the cluster exists.
+
+- name: Look up the CoreDNS (kube-dns) ClusterIP
+  become_user: "{{ kube_user }}"
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  command: kubectl get svc kube-dns -n kube-system -o jsonpath='{.spec.clusterIP}'
+  register: coredns_lookup
+  changed_when: false
+  failed_when: false
+
+- name: Skip cluster DNS handoff if CoreDNS is not yet available
+  debug:
+    msg: >-
+      CoreDNS (kube-dns service) not found yet — skipping the
+      systemd-resolved handoff. This is expected before the cluster's
+      DNS layer is deployed (e.g. before Argo CD has synced). Static
+      Phase-1 DNS from host-prep remains in effect; re-run this
+      playbook once the cluster is up to apply the handoff.
+  when: coredns_lookup.rc != 0 or coredns_lookup.stdout | length == 0
+
+- name: Apply the cluster DNS handoff (CoreDNS is available)
+  when: coredns_lookup.rc == 0 and coredns_lookup.stdout | length > 0
+  block:
+    - name: Ensure /etc/systemd/resolved.conf.d exists
+      file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+        mode: "0755"
+
+    - name: Configure systemd-resolved to forward cluster domains to CoreDNS
+      # Dedicated drop-in file rather than appending to resolved.conf
+      # directly — idempotent, and won't duplicate stanzas on re-run
+      # (the original script's `tee -a` would have on a second run).
+      template:
+        src: 90-openstack-cluster.conf.j2
+        dest: /etc/systemd/resolved.conf.d/90-openstack-cluster.conf
+        mode: "0644"
+      vars:
+        coredns_cluster_ip: "{{ coredns_lookup.stdout }}"
+      register: resolved_conf
+
+    - name: Point /etc/resolv.conf at the systemd-resolved stub resolver
+      file:
+        src: /run/systemd/resolve/stub-resolv.conf
+        dest: /etc/resolv.conf
+        state: link
+        force: true
+      register: resolv_symlink
+      # NOTE: this only persists cleanly because host-prep already
+      # disabled Tailscale's accept-dns — otherwise tailscaled would
+      # fight this symlink the same way it fought the static Phase-1
+      # file (see README changelog).
+
+    - name: Restart systemd-resolved to apply forwarding config
+      systemd:
+        name: systemd-resolved
+        state: restarted
+      when: resolved_conf.changed or resolv_symlink.changed

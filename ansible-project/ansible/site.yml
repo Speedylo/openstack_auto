@@ -1,0 +1,54 @@
+---
+# ==========================================================
+# Inwi OpenStack Private Cloud — Host Bootstrap Playbook
+# ==========================================================
+# Converts Phases 1-3 of the working deployment script into
+# idempotent Ansible roles. Safe to re-run: running this
+# playbook a second time against an already-provisioned host
+# should result in "changed=0" for anything already correct,
+# instead of re-wiping storage or duplicating config lines.
+#
+# Scope: host kernel tuning, systemd persistence services,
+# k3s, Docker, Helm, and the openstack-helm workspace/repo.
+# Also includes cluster-dns: a self-skipping Phase-8 DNS handoff
+# (systemd-resolved -> CoreDNS) that no-ops until the cluster's
+# CoreDNS is actually up, so it's safe to leave in every run.
+# Chart deployment (Phases 4-9) is NOT run imperatively here —
+# the argocd role installs Argo CD and applies a root-app
+# (App-of-Apps) pointed at gitops/apps/ in this same repo, which
+# converges MetalLB, Envoy Gateway, ingress-nginx, Rook-Ceph, and
+# the OpenStack-Helm chart set declaratively from git.
+# ==========================================================
+
+- name: Bootstrap OpenStack-Helm host
+  hosts: openstack_hosts
+  become: true
+  vars:
+    loop_device: /dev/loop100
+    ceph_loop_image: /var/lib/openstack-helm/ceph-loop-disk.img
+    ceph_loop_size_gb: 20
+    kube_user: "{{ ansible_user }}"
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    workspace_dir: "/home/{{ ansible_user }}/openstack-helm-workspace"
+    k3s_version: "v1.35.6+k3s1"
+    provider_bridge_interface: dummy0
+    public_egress_interface: enp3s0
+    br_ex_cidr: "172.24.4.1/24"
+    br_ex_network: "172.24.4.0/24"
+
+  roles:
+    - host-prep
+    - openstack-persistence
+    - k3s
+    - docker
+    - helm-workspace
+    - cluster-dns
+    - argocd
+    # argocd installs Argo CD and applies the root-app (App-of-Apps),
+    # which points at gitops/apps/ in this repo. Everything that used
+    # to be Phases 4-9 of the working script (MetalLB, Envoy Gateway,
+    # ingress-nginx, Rook-Ceph, and the OpenStack-Helm chart set) now
+    # converges via Argo CD from there — this role is the last thing
+    # Ansible does. Requires GITOPS_REPO_URL (and optionally
+    # GITOPS_REPO_REVISION) exported before running, same as
+    # OPENSTACK_HOST_IP/OPENSTACK_SSH_KEY.

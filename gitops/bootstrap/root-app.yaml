@@ -1,0 +1,45 @@
+---
+# ==========================================================
+# App-of-Apps root. This is the ONE Application object the
+# argocd Ansible role applies directly (kubectl/k8s module).
+# Everything else — every chart, every raw manifest — is a
+# child Application discovered by this one via `directory.recurse`
+# over gitops/apps/, and is managed entirely from git from here on.
+#
+# Why app-of-apps instead of an ApplicationSet list generator for
+# the repetitive OpenStack chart set: sync-waves only gate
+# progression ("don't sync wave N+1 until wave N is Healthy")
+# across resources belonging to ONE Application's sync operation.
+# Children created by an ApplicationSet are reconciled by the
+# ApplicationSet controller independently of each other and of
+# this root Application, so wave numbers on them would be decorative
+# only, not enforced. Plain files under apps/, all owned by this
+# root Application's single sync, is what makes the wave-gated
+# rollout (metallb before its config, rook operator before
+# rook cluster, mariadb before keystone, etc.) actually behave
+# like the original script's phase ordering.
+# ==========================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: "{{ GITOPS_REPO_URL }}"       # replaced by the argocd Ansible role at apply time
+    targetRevision: "{{ GITOPS_REPO_REVISION }}"
+    path: gitops/apps
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true      # remove child Applications (and their resources) if their file is deleted from git
+      selfHeal: true    # revert manual kubectl/helm drift back to what's in git
+    syncOptions:
+      - CreateNamespace=true

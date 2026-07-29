@@ -1,0 +1,41 @@
+---
+# Ported from Phase 4/5's exact labeling logic -- NOT "label every node
+# with everything" (an earlier draft of this file did that, which is a
+# real behavioral difference from the script and would matter on a
+# multi-node cluster): ceph-mon/ceph-osd/ceph-mds/ceph-rgw go on the
+# FIRST node only (`kubectl get nodes -o jsonpath='{.items[0]...}'` in
+# the original); openstack-control-plane/openstack-compute-node/
+# openvswitch go on ALL nodes (`kubectl label --overwrite nodes --all
+# ...`). On this project's single-node cluster the two are equivalent
+# today, but this keeps the manifest an honest port rather than a
+# reinterpretation.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: node-labels
+  namespace: kube-system
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: node-labeler
+      restartPolicy: OnFailure
+      containers:
+        - name: label-nodes
+          image: bitnami/kubectl:1.31
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              FIRST_NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+              kubectl label node "$FIRST_NODE" \
+                ceph-mon=enabled \
+                ceph-osd=enabled \
+                ceph-mds=enabled \
+                ceph-rgw=enabled \
+                --overwrite
+              kubectl label --overwrite nodes --all \
+                openstack-control-plane=enabled \
+                openstack-compute-node=enabled \
+                openvswitch=enabled

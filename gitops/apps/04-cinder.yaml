@@ -1,0 +1,41 @@
+---
+# mon_host is NOT set here on purpose: ceph-adapter-rook (wave 3)
+# discovers it automatically (conf.ceph.global.mon_host defaults to
+# "will be discovered" -- see its job_namespace_client_ceph_config job)
+# and writes it into a shared `ceph-etc` ConfigMap in this namespace,
+# which this chart consumes on its own. This replaces the original
+# script's `helm show values | sed` hack for injecting a mon pod IP --
+# that IP would've gone stale on any mon reschedule anyway; the
+# discovery job's output doesn't have that problem, and this chart
+# needs zero cinder-specific ceph config as a result.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cinder
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      path: cinder
+      helm:
+        releaseName: cinder
+        valueFiles:
+          - $upstream/values_overrides/cinder/2025.1-ubuntu_noble.yaml
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      ref: upstream
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

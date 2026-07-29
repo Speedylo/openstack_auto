@@ -1,0 +1,13 @@
+[Unit]
+Description=Late-Stage Network Plumbing for OpenStack-Helm br-ex
+After=network.target k3s.service
+Wants=k3s.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/openstack-network-plumbing.sh
+RemainAfterExit=yes
+ExecStop=/bin/true
+
+[Install]
+WantedBy=multi-user.target
