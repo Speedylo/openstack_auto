@@ -107,7 +107,11 @@ spec:
           storage:
             useAllNodes: true
             useAllDevices: false
-            deviceFilter: "^loop100$"   # patched from ceph-rook.sh's exact `devices: [{name: /dev/loop100}]`
+            devices:
+              - name: "/dev/loop100"
+                config:
+                  databaseSizeMB: "5120"
+                  walSizeMB: "2048"
           disruptionManagement:
             managePodBudgets: true
             osdMaintenanceTimeout: 30
