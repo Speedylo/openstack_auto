@@ -22,7 +22,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: label-nodes
-          image: bitnami/kubectl:1.31
+          image: rancher/kubectl:v1.31.0
           command:
             - /bin/sh
             - -c
