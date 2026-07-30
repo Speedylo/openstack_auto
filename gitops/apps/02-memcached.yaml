@@ -11,16 +11,11 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: memcached
-      helm:
-        releaseName: memcached
-        valueFiles:
-          - $upstream/values_overrides/memcached/2025.1-ubuntu_noble.yaml
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
+    repoURL: https://opendev.org/openstack/openstack-helm.git
+    targetRevision: master
+    path: memcached
+    helm:
+      releaseName: memcached
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack

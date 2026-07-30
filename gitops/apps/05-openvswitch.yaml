@@ -10,17 +10,12 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: openvswitch
-      helm:
-        releaseName: openvswitch
-        valueFiles:
-          - $upstream/values_overrides/openvswitch/2025.1-ubuntu_noble.yaml
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
+  source:
+    repoURL: https://opendev.org/openstack/openstack-helm.git
+    targetRevision: master
+    path: openvswitch
+    helm:
+      releaseName: openvswitch
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
