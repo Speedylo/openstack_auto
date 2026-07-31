@@ -1,0 +1,46 @@
+---
+# Confirmed via Rook's own upgrade docs: "This ceph-csi-drivers chart
+# must be installed, otherwise the CSI driver will be in a failed
+# state due to missing service accounts." ceph-csi-controller-manager
+# (from rook-ceph, wave 1) is only the CONTROLLER that watches
+# Driver/OperatorConfig CRs -- it doesn't deploy the actual
+# csi-rbdplugin/csi-rbdplugin-provisioner pods until this chart
+# creates the CR instances telling it to.
+#
+# operatorNamespace/driverNamePrefix below are a best-effort guess at
+# this chart's values schema based on the docs' description ("setting
+# proper driver names with the rook operator namespace as a prefix"),
+# NOT independently verified against the chart's actual values.yaml --
+# if this Application errors on sync with an unrecognized-value
+# warning (harmless) or, worse, deploys with wrong driver naming, check
+# `helm show values rook-release/ceph-csi-drivers --version v1.19.3`
+# and correct these keys.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ceph-csi-drivers
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.rook.io/release
+    chart: ceph-csi-drivers
+    targetRevision: v1.19.3
+    helm:
+      releaseName: ceph-csi-drivers
+      values: |
+        operatorNamespace: rook-ceph
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rook-ceph
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
