@@ -52,7 +52,12 @@ spec:
               mountPath: /shared
       containers:
         - name: create-crds
-          image: rancher/kubectl:v1.31.0
+          # rancher/kubectl has no shell at all -- confirmed on a real
+          # cluster ("/bin/sh": no such file or directory), which is
+          # the actual reason this Job never got past StartError.
+          # alpine/k8s bundles kubectl + a real shell, verified
+          # directly before using it here.
+          image: alpine/k8s:1.31.0
           command:
             - /bin/sh
             - -c

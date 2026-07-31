@@ -22,7 +22,17 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: label-nodes
-          image: rancher/kubectl:v1.31.0
+          # bitnami/kubectl:1.31 no longer exists -- Bitnami discontinued
+          # the entire docker.io/bitnami free catalog (staged shutdown
+          # Aug-Sep 2025). Their own suggested fallback, bitnamilegacy/*,
+          # is explicitly documented as temporary/removable, so not
+          # using that either. Update: rancher/kubectl was ALSO wrong --
+          # confirmed on a real cluster it ships with no shell at all
+          # ("/bin/sh": no such file or directory), so a command-based
+          # container using it can never actually start. alpine/k8s
+          # bundles kubectl + a real shell, verified directly (`which
+          # kubectl && which sh` both resolved) before using it here.
+          image: alpine/k8s:1.31.0
           command:
             - /bin/sh
             - -c
