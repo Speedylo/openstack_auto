@@ -1,0 +1,26 @@
+---
+# Must land before rook-ceph-operator (wave 1) -- see the comment in
+# gitops/manifests/rook-ceph-crds/job.yaml for the full explanation of
+# why this exists at all.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rook-ceph-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/rook-ceph-crds
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

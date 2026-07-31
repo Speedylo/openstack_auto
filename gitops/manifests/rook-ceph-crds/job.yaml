@@ -1,0 +1,64 @@
+---
+# Workaround for a real upstream issue, not a mistake in our config:
+# starting in Rook v1.18, the CSI driver moved into a bundled
+# `ceph-csi-operator` subchart, whose Driver/OperatorConfig CRDs are
+# large enough to exceed the Kubernetes API server's 262144-byte
+# metadata.annotations limit when Argo CD applies them -- confirmed
+# on a real cluster that ServerSideApply=true (set on
+# rook-ceph-operator) does NOT avoid this, because Argo CD's CRD
+# establishment phase doesn't fully honor that sync option.
+#
+# `kubectl create` (unlike `kubectl apply`) never writes the
+# kubectl.kubernetes.io/last-applied-configuration annotation that
+# trips this limit in the first place, so pre-creating these CRDs here
+# -- before rook-ceph-operator's own sync (wave 1) ever attempts to
+# apply them -- sidesteps the problem entirely. Once a CRD already
+# exists, Argo CD's subsequent sync just reconciles the object it
+# already owns rather than re-triggering the create-time failure.
+#
+# Rendering via `helm template` against the exact same chart/version
+# used by 01-rook-ceph-operator.yaml (rather than fetching a CRD
+# manifest from a separate, guessed URL) guarantees these CRDs are
+# byte-for-byte what that Application would have installed itself.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rook-ceph-crd-precreate
+  namespace: kube-system
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: rook-ceph-crd-precreate
+      restartPolicy: OnFailure
+      volumes:
+        - name: shared
+          emptyDir: {}
+      initContainers:
+        - name: render
+          image: alpine/helm:3.16.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              helm repo add rook-release https://charts.rook.io/release
+              helm repo update
+              helm template rook-ceph rook-release/rook-ceph \
+                --version v1.19.3 --include-crds \
+                > /shared/rendered.yaml
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        - name: create-crds
+          image: rancher/kubectl:v1.31.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl create -f /shared/rendered.yaml || true
+              exit 0
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
