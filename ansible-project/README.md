@@ -34,7 +34,9 @@ export OPENSTACK_HOST_IP=100.113.247.85
 # "Permission denied (publickey)" if this isn't set to a valid key.
 export OPENSTACK_SSH_KEY=/path/to/your/private/key
 
-ansible-playbook -i inventory/hosts.yml site.yml
+ansible-playbook site.yml -i inventory/hosts.yml \
+  -e gitops_repo_url=git@github.com:Speedylo/openstack_auto.git \
+  -e gitops_repo_revision=main
 ```
 
 If the playbook fails with `UNREACHABLE` / `Permission denied (publickey)`,

@@ -10,7 +10,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
+  source:
     repoURL: https://opendev.org/openstack/openstack-helm.git
     targetRevision: master
     path: memcached

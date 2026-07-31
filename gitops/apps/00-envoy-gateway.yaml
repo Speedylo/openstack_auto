@@ -1,4 +1,8 @@
 ---
+# See gitops/manifests/envoy-gateway-install/job.yaml for why this is
+# a Job wrapping plain `helm upgrade --install` rather than Argo CD's
+# native OCI Helm source (which hits a confirmed open upstream bug for
+# this specific chart).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -10,22 +14,14 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  # OCI Helm source. Syntax below matches current Argo CD (2.10+) native
-  # OCI support (`oci://<registry>/<namespace>` + separate `chart:` field).
-  # VERIFY against your Argo CD version — earlier releases required
-  # `helm.oci: true` under `source.helm` instead; check `argocd version`.
   source:
-    repoURL: oci://registry-1.docker.io/envoyproxy
-    chart: gateway-helm
-    targetRevision: v1.7.4
-    helm:
-      releaseName: eg
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/envoy-gateway-install
   destination:
     server: https://kubernetes.default.svc
-    namespace: envoy-gateway-system
+    namespace: kube-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true

@@ -7,14 +7,23 @@
 # csi-rbdplugin/csi-rbdplugin-provisioner pods until this chart
 # creates the CR instances telling it to.
 #
-# operatorNamespace/driverNamePrefix below are a best-effort guess at
-# this chart's values schema based on the docs' description ("setting
-# proper driver names with the rook operator namespace as a prefix"),
-# NOT independently verified against the chart's actual values.yaml --
-# if this Application errors on sync with an unrecognized-value
-# warning (harmless) or, worse, deploys with wrong driver naming, check
-# `helm show values rook-release/ceph-csi-drivers --version v1.19.3`
-# and correct these keys.
+# IMPORTANT: this chart is NOT published from charts.rook.io/release
+# (an earlier version of this file assumed it was, and guessed version
+# v1.19.3 to match rook-ceph -- wrong on both counts, confirmed via
+# ComparisonError: "chart ceph-csi-drivers version v1.19.3 not found").
+# Per Rook's own docs: "Ceph-CSI publishes the drivers chart from the
+# ceph-csi-operator Helm repository" -- a separate repo with its own
+# independent versioning, not tied to Rook's release numbers at all.
+# Using a broad range instead of guessing another exact pin.
+#
+# operatorNamespace below is a best-effort guess at this chart's
+# values schema based on the docs' description ("setting proper driver
+# names with the rook operator namespace as a prefix"), NOT
+# independently verified against the chart's actual values.yaml -- if
+# this Application errors on sync with an unrecognized-value warning
+# (harmless) or, worse, deploys with wrong driver naming, check
+# `helm show values ceph-csi-operator/ceph-csi-drivers` and correct
+# this key.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -27,9 +36,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://charts.rook.io/release
+    repoURL: https://ceph.github.io/ceph-csi-operator-charts
     chart: ceph-csi-drivers
-    targetRevision: v1.19.3
+    targetRevision: ">=0.1.0"
     helm:
       releaseName: ceph-csi-drivers
       values: |
