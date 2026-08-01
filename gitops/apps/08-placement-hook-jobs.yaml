@@ -1,0 +1,27 @@
+---
+# See gitops/manifests/placement-hook-jobs/job.yaml -- workaround for
+# argoproj/argo-cd#23555. Wave 8, after placement's own Application
+# (whatever wave that is) so its regular ConfigMaps/Secrets already
+# exist for this Job's pods to mount.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: placement-hook-jobs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/placement-hook-jobs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

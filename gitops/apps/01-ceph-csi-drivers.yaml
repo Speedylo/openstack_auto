@@ -7,23 +7,34 @@
 # csi-rbdplugin/csi-rbdplugin-provisioner pods until this chart
 # creates the CR instances telling it to.
 #
-# IMPORTANT: this chart is NOT published from charts.rook.io/release
-# (an earlier version of this file assumed it was, and guessed version
-# v1.19.3 to match rook-ceph -- wrong on both counts, confirmed via
-# ComparisonError: "chart ceph-csi-drivers version v1.19.3 not found").
-# Per Rook's own docs: "Ceph-CSI publishes the drivers chart from the
-# ceph-csi-operator Helm repository" -- a separate repo with its own
-# independent versioning, not tied to Rook's release numbers at all.
-# Using a broad range instead of guessing another exact pin.
+# NOT sourced from a Helm repo -- the documented one
+# (https://ceph.github.io/ceph-csi-operator-charts) 404s right now on
+# a direct fetch, confirmed, despite being what the project's own docs
+# say to use (may just not be live yet / a documentation-vs-reality
+# gap upstream). The same docs also show installing directly from the
+# chart's location in git (`cd deploy/charts/ceph-csi-drivers && helm
+# install ...`), so using that instead -- same git+path Helm source
+# pattern already proven reliable for every openstack-helm chart in
+# this project, rather than depending on a repo that isn't currently
+# serving.
 #
 # operatorNamespace below is a best-effort guess at this chart's
-# values schema based on the docs' description ("setting proper driver
-# names with the rook operator namespace as a prefix"), NOT
-# independently verified against the chart's actual values.yaml -- if
-# this Application errors on sync with an unrecognized-value warning
+# values schema based on Rook's docs ("setting proper driver names
+# with the rook operator namespace as a prefix"), NOT independently
+# verified against the chart's actual values.yaml -- if this
+# Application errors on sync with an unrecognized-value warning
 # (harmless) or, worse, deploys with wrong driver naming, check
-# `helm show values ceph-csi-operator/ceph-csi-drivers` and correct
-# this key.
+# deploy/charts/ceph-csi-drivers/values.yaml in the ceph-csi-operator
+# repo and correct this key.
+#
+# CAVEAT: targetRevision: main is a moving target, and we don't know
+# exactly which ceph-csi-operator version Rook v1.19.3 bundles
+# internally (different Rook releases pin different ones -- e.g. Rook
+# v1.20.2's release notes mention bumping to ceph-csi-operator v1.0.4).
+# If the Driver/OperatorConfig CRs this chart creates don't match what
+# rook-ceph's bundled controller-manager expects, that's the first
+# place to look. Pinning to a specific tag once one's confirmed
+# compatible would be more correct than tracking main long-term.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -36,9 +47,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://ceph.github.io/ceph-csi-operator-charts
-    chart: ceph-csi-drivers
-    targetRevision: ">=0.1.0"
+    repoURL: https://github.com/ceph/ceph-csi-operator.git
+    targetRevision: main
+    path: deploy/charts/ceph-csi-drivers
     helm:
       releaseName: ceph-csi-drivers
       values: |

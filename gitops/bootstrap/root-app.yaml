@@ -29,8 +29,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "git@github.com:Speedylo/openstack_auto.git"       # replaced by the argocd Ansible role at apply time
-    targetRevision: "main"
+    repoURL: "{{ GITOPS_REPO_URL }}"       # replaced by the argocd Ansible role at apply time
+    targetRevision: "{{ GITOPS_REPO_REVISION }}"
     path: gitops/apps
     directory:
       recurse: true

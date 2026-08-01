@@ -1,14 +1,19 @@
 ---
 # cephClusterSpec below is ceph-rook.sh's /tmp/ceph.yaml, ported as-is,
-# with exactly two intentional deviations -- both were previously
-# applied as a post-hoc `kubectl patch` by the working script's Phase 5
-# background watcher, and are templated directly here instead:
-#   - mon.count 3 -> 1, mgr.count 3 -> 1 (single-node cluster: 3 mons
-#     with allowMultiplePerNode left false would never reach quorum on
-#     one node)
-#   - storage.devices (exact device name) -> storage.deviceFilter (regex)
-#     matching /dev/loop100, which is what the original patch itself
-#     switched to
+# with one intentional deviation: mon.count 3 -> 1, mgr.count 3 -> 1
+# (single-node cluster: 3 mons with allowMultiplePerNode left false
+# would never reach quorum on one node).
+#
+# storage.devices below uses the exact path (/dev/loop100), same as
+# ceph-rook.sh's own base config -- an earlier version of this file
+# had switched this to storage.deviceFilter (a regex), on the belief
+# that the working script's Phase 5 patch made that same switch.
+# Wrong either way: Rook explicitly does not match loop devices via
+# deviceFilter ("loop device is not picked by `deviceFilter`... please
+# specify the exact device name... in `devices` field instead" --
+# confirmed directly from osd-prepare pod logs on a real cluster).
+# Reverted to the exact-path form.
+#
 # configOverride's mon_allow_pool_size_one/osd_pool_default_size=1 are
 # NOT something I added -- they're already in the original ceph.yaml,
 # and they're why replicated.size: 1 below is even accepted; Ceph

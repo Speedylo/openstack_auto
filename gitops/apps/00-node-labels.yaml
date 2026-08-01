@@ -11,8 +11,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "git@github.com:Speedylo/openstack_auto.git"
-    targetRevision: "main"
+    repoURL: "{{ GITOPS_REPO_URL }}"
+    targetRevision: "{{ GITOPS_REPO_REVISION }}"
     path: gitops/manifests/node-labels
   destination:
     server: https://kubernetes.default.svc

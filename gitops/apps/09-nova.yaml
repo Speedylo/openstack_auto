@@ -2,10 +2,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: libvirt
+  name: nova
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "9"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -13,17 +13,23 @@ spec:
   sources:
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
-      path: libvirt
+      path: nova
       helm:
-        releaseName: libvirt
+        releaseName: nova
         valueFiles:
-          - $upstream/values_overrides/libvirt/2025.1-ubuntu_noble.yaml
+          - $upstream/values_overrides/nova/2025.1-ubuntu_noble.yaml
+          - $local/gitops/values/nova-local.yaml
         parameters:
+          - name: bootstrap.wait_for_computes.enabled
+            value: "true"
           - name: conf.ceph.enabled
             value: "true"
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
       ref: upstream
+    - repoURL: "{{ GITOPS_REPO_URL }}"
+      targetRevision: "{{ GITOPS_REPO_REVISION }}"
+      ref: local
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack

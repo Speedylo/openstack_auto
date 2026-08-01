@@ -1,0 +1,27 @@
+---
+# See gitops/manifests/neutron-hook-jobs/job.yaml -- workaround for
+# argoproj/argo-cd#23555. Wave 11, after neutron's own Application
+# (whatever wave that is) so its regular ConfigMaps/Secrets already
+# exist for this Job's pods to mount.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: neutron-hook-jobs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/neutron-hook-jobs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

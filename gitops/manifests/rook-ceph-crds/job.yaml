@@ -62,6 +62,13 @@ spec:
             - /bin/sh
             - -c
             - |
+              # `kubectl create` on a multi-doc file errors per-document
+              # for anything that already exists (expected -- most of
+              # this chart's CRDs/resources are already managed fine by
+              # rook-ceph-operator) but continues past those and still
+              # creates whatever's genuinely missing. Exit 0 regardless
+              # so the Job reports Complete rather than looking failed
+              # over pre-existing resources.
               kubectl create -f /shared/rendered.yaml || true
               exit 0
           volumeMounts:

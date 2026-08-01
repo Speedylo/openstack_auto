@@ -2,10 +2,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: nova
+  name: glance
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-wave: "5"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -13,22 +13,17 @@ spec:
   sources:
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
-      path: nova
+      path: glance
       helm:
-        releaseName: nova
+        releaseName: glance
         valueFiles:
-          - $upstream/values_overrides/nova/2025.1-ubuntu_noble.yaml
-          - $local/gitops/values/nova-local.yaml
-        parameters:
-          - name: bootstrap.wait_for_computes.enabled
-            value: "true"
-          - name: conf.ceph.enabled
-            value: "true"
+          - $upstream/values_overrides/glance/2025.1-ubuntu_noble.yaml
+          - $local/gitops/values/glance-local.yaml
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
       ref: upstream
-    - repoURL: "git@github.com:Speedylo/openstack_auto.git"
-      targetRevision: "main"
+    - repoURL: "{{ GITOPS_REPO_URL }}"
+      targetRevision: "{{ GITOPS_REPO_REVISION }}"
       ref: local
   destination:
     server: https://kubernetes.default.svc

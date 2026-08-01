@@ -1,11 +1,15 @@
 ---
+# Same situation as memcached (see 02-memcached.yaml comment):
+# values_overrides/openvswitch/2025.1-ubuntu_noble.yaml doesn't exist
+# in the repo for this chart -- confirmed via ComparisonError. Chart
+# defaults only, no override source.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: openvswitch
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "7"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

@@ -2,10 +2,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: horizon
+  name: libvirt
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "8"
+    argocd.argoproj.io/sync-wave: "7"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -13,11 +13,14 @@ spec:
   sources:
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
-      path: horizon
+      path: libvirt
       helm:
-        releaseName: horizon
+        releaseName: libvirt
         valueFiles:
-          - $upstream/values_overrides/horizon/2025.1-ubuntu_noble.yaml
+          - $upstream/values_overrides/libvirt/2025.1-ubuntu_noble.yaml
+        parameters:
+          - name: conf.ceph.enabled
+            value: "true"
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
       ref: upstream

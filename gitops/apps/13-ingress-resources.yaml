@@ -5,14 +5,14 @@ metadata:
   name: ingress-resources
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "9"
+    argocd.argoproj.io/sync-wave: "13"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: "git@github.com:Speedylo/openstack_auto.git"
-    targetRevision: "main"
+    repoURL: "{{ GITOPS_REPO_URL }}"
+    targetRevision: "{{ GITOPS_REPO_REVISION }}"
     path: gitops/manifests/ingress-resources
   destination:
     server: https://kubernetes.default.svc

@@ -1,0 +1,60 @@
+---
+# Workaround for argoproj/argo-cd#23555 (confirmed, currently open):
+# Argo CD does not create Helm-hook-annotated Job resources defined by
+# openstack-helm charts (openstack-helm's own release notes confirm
+# these carry "helm hook annotations... by default"). Confirmed on a
+# real cluster this chart has ZERO or incomplete Jobs despite its
+# Application showing Synced -- this renders the chart with plain
+# `helm template` (not going through Argo CD's broken hook
+# translation) and creates every Job it defines directly. Existing
+# Jobs (already created by Argo CD for the ones that DID work) just
+# get a harmless "AlreadyExists" here, swallowed by `|| true`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neutron-hook-job-precreate
+  namespace: openstack
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: neutron-hook-job-precreate
+      restartPolicy: OnFailure
+      volumes:
+        - name: shared
+          emptyDir: {}
+      initContainers:
+        - name: render
+          image: alpine/helm:3.16.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache git >/dev/null
+              git clone --depth 1 --branch master \
+                https://opendev.org/openstack/openstack-helm.git /tmp/openstack-helm
+              cd /tmp/openstack-helm/neutron
+              helm dependency build >/dev/null 2>&1 || true
+              helm template neutron . --namespace openstack > /shared/rendered.yaml
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        - name: extract-and-create
+          image: alpine/k8s:1.31.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              awk '/^---/{n++} {print > ("/tmp/doc-" n ".yaml")}' /shared/rendered.yaml
+              for f in /tmp/doc-*.yaml; do
+                if grep -q "^kind: Job" "$f" 2>/dev/null; then
+                  echo "Creating: $(grep 'name:' "$f" | head -1)"
+                  kubectl create -f "$f" || true
+                fi
+              done
+          volumeMounts:
+            - name: shared
+              mountPath: /shared

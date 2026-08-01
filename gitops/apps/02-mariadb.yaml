@@ -25,8 +25,8 @@ spec:
     - repoURL: https://opendev.org/openstack/openstack-helm.git
       targetRevision: master
       ref: upstream
-    - repoURL: "git@github.com:Speedylo/openstack_auto.git"
-      targetRevision: "main"
+    - repoURL: "{{ GITOPS_REPO_URL }}"
+      targetRevision: "{{ GITOPS_REPO_REVISION }}"
       ref: local
   destination:
     server: https://kubernetes.default.svc

@@ -1,4 +1,12 @@
 ---
+# NOT every openstack-helm chart has a values_overrides/<chart>/2025.1-
+# ubuntu_noble.yaml file -- these only exist where the chart actually
+# needs a release/OS-specific override; the original script's
+# `helm osh get-values-overrides` plugin silently skips a missing
+# file, but Argo CD's static valueFiles list can't -- it errors
+# ("no such file or directory") if the file doesn't exist. Confirmed
+# via ComparisonError that this file does not exist for memcached at
+# this release/OS combo, so this Application uses chart defaults only.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
