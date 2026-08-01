@@ -1,14 +1,13 @@
 ---
 # Workaround for argoproj/argo-cd#23555 (confirmed, currently open):
-# Argo CD does not create Helm-hook-annotated Job resources defined by
-# openstack-helm charts (openstack-helm's own release notes confirm
-# these carry "helm hook annotations... by default"). Confirmed on a
-# real cluster this chart has ZERO or incomplete Jobs despite its
-# Application showing Synced -- this renders the chart with plain
-# `helm template` (not going through Argo CD's broken hook
-# translation) and creates every Job it defines directly. Existing
-# Jobs (already created by Argo CD for the ones that DID work) just
-# get a harmless "AlreadyExists" here, swallowed by `|| true`.
+# Argo CD does not create Helm-hook-annotated resources defined by
+# openstack-helm charts -- and this is NOT limited to Jobs. Confirmed
+# on a real cluster that keystone-credential-keys/keystone-fernet-keys
+# are plain Secrets with "helm.sh/hook: pre-install", not Jobs, and an
+# earlier version of this workaround only extracted kind: Job, silently
+# missing them. Filtering by the helm.sh/hook annotation itself (any
+# resource kind) instead of by kind: Job is the correct, complete fix
+# for this class of problem.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -50,7 +49,7 @@ spec:
               set -e
               awk '/^---/{n++} {print > ("/tmp/doc-" n ".yaml")}' /shared/rendered.yaml
               for f in /tmp/doc-*.yaml; do
-                if grep -q "^kind: Job" "$f" 2>/dev/null; then
+                if grep -q "helm.sh/hook:" "$f" 2>/dev/null; then
                   echo "Creating: $(grep 'name:' "$f" | head -1)"
                   kubectl create -f "$f" || true
                 fi
