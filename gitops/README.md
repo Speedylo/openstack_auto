@@ -231,13 +231,23 @@ scheduling depends on them.
     (an old openstack-helm build-time convention). If the very first
     sync of `02-mariadb.yaml`/`02-rabbitmq.yaml` fails with a dependency
     resolution error, this is where to look first.
-10. **`repoURL`/`targetRevision` placeholders**: every Application that
-   references this repo itself (root-app, node-labels, metallb-config,
-   envoy-gateway-config, ingress-resources, and the `$local` source on
-   mariadb/glance/neutron/nova/cinder) uses `{{ GITOPS_REPO_URL }}` /
-   `{{ GITOPS_REPO_REVISION }}` as literal text in the committed YAML —
-   these are **not** Ansible/Jinja templates that render on their own;
-   only the Ansible role's `root-app.yaml.j2` copy actually substitutes
-   them. Before committing this repo, either replace those placeholders
-   with your real repo URL directly, or template the whole `gitops/`
-   tree the same way if you want it parameterized too.
+10. **~~`repoURL`/`targetRevision` placeholders~~ — FIXED, hardcoded
+   directly, learned this the hard way.** This used to be
+   `{{ GITOPS_REPO_URL }}`/`{{ GITOPS_REPO_REVISION }}` as literal
+   placeholder text in every Application referencing this repo itself
+   (root-app, node-labels, metallb-config, envoy-gateway-config,
+   storage-defaults, ingress-resources, and the `$local`/multi-source
+   entries on mariadb/glance/neutron/nova). That design was a mistake:
+   it required a manual find-and-replace step that isn't durable —
+   it regressed **twice** in one session, both times when a batch of
+   files got replaced wholesale from a fresh copy of this repo (the
+   sync-wave renumbering, and the hook-jobs RBAC fix), silently undoing
+   the earlier manual substitution both times and sending several
+   Applications back to `Unknown` with `repository not found` /
+   `failed to get git client` errors. Fixed properly now: every file
+   has `git@github.com:Speedylo/openstack_auto.git` / `main` hardcoded
+   directly, matching what the newer files (the `*-hook-jobs`
+   Applications) already did correctly from the start. If you ever
+   fork this repo to a different URL, that's now a real
+   find-and-replace across `gitops/`, same as before — but at least it
+   won't spontaneously regress on its own anymore.

@@ -11,8 +11,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "{{ GITOPS_REPO_URL }}"
-    targetRevision: "{{ GITOPS_REPO_REVISION }}"
+    repoURL: "git@github.com:Speedylo/openstack_auto.git"
+    targetRevision: "main"
     path: gitops/manifests/storage-defaults
   destination:
     server: https://kubernetes.default.svc
