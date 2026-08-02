@@ -1,0 +1,32 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: horizon
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "13"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      path: horizon
+      helm:
+        releaseName: horizon
+        valueFiles:
+          - $upstream/values_overrides/horizon/2025.1-ubuntu_noble.yaml
+    - repoURL: https://opendev.org/openstack/openstack-helm.git
+      targetRevision: master
+      ref: upstream
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

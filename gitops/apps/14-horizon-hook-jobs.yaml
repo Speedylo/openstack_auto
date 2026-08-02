@@ -1,0 +1,27 @@
+---
+# See gitops/manifests/horizon-hook-jobs/job.yaml -- workaround for
+# argoproj/argo-cd#23555. Wave 14, after horizon's own Application
+# (wave 12), before ingress-resources (wave 14, references horizon's
+# Service which needs this to be up).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: horizon-hook-jobs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "14"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/horizon-hook-jobs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

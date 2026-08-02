@@ -1,23 +1,21 @@
 ---
-# Workaround for argoproj/argo-cd#23555 (confirmed, currently open):
-# Argo CD does not create Helm-hook-annotated resources defined by
-# openstack-helm charts -- and this is NOT limited to Jobs. Confirmed
-# on a real cluster that keystone-credential-keys/keystone-fernet-keys
-# are plain Secrets with "helm.sh/hook: pre-install", not Jobs, and an
-# earlier version of this workaround only extracted kind: Job, silently
-# missing them. Filtering by the helm.sh/hook annotation itself (any
-# resource kind) instead of by kind: Job is the correct, complete fix
-# for this class of problem.
+# Workaround for argoproj/argo-cd#23555. Filters on BOTH the
+# helm.sh/hook annotation AND plain kind: Job -- confirmed on a real
+# cluster that not every missing Job in these charts is hook-annotated
+# (e.g. cinder-storage-init is a plain Job that still didn't get
+# created by Argo CD's regular sync), so hook-annotation-only filtering
+# missed it. This is the broadened version of the filter, applied
+# retroactively to all charts using this pattern.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: neutron-hook-job-precreate
+  name: nova-hook-job-precreate
   namespace: openstack
 spec:
   backoffLimit: 3
   template:
     spec:
-      serviceAccountName: neutron-hook-job-precreate
+      serviceAccountName: nova-hook-job-precreate
       restartPolicy: OnFailure
       volumes:
         - name: shared
@@ -33,9 +31,9 @@ spec:
               apk add --no-cache git >/dev/null
               git clone --depth 1 --branch master \
                 https://opendev.org/openstack/openstack-helm.git /tmp/openstack-helm
-              cd /tmp/openstack-helm/neutron
+              cd /tmp/openstack-helm/nova
               helm dependency build >/dev/null 2>&1 || true
-              helm template neutron . --namespace openstack > /shared/rendered.yaml
+              helm template nova . --namespace openstack > /shared/rendered.yaml
           volumeMounts:
             - name: shared
               mountPath: /shared

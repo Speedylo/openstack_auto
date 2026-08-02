@@ -1,0 +1,33 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nova-hook-job-precreate
+  namespace: openstack
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nova-hook-job-precreate
+  namespace: openstack
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nova-hook-job-precreate
+  namespace: openstack
+subjects:
+  - kind: ServiceAccount
+    name: nova-hook-job-precreate
+    namespace: openstack
+roleRef:
+  kind: Role
+  name: nova-hook-job-precreate
+  apiGroup: rbac.authorization.k8s.io

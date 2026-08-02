@@ -1,0 +1,27 @@
+---
+# See gitops/manifests/nova-hook-jobs/job.yaml -- workaround for
+# argoproj/argo-cd#23555. Wave 10, after nova's own Application
+# (wave 9), before neutron (wave 10 was neutron's slot -- shifted
+# neutron to 11 and neutron-hook-jobs to 12 to make room).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nova-hook-jobs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/nova-hook-jobs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openstack
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
