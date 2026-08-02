@@ -34,12 +34,18 @@
   echo "Background task: Cleaning up previous Placement DB jobs..."
   kubectl delete job -n openstack placement-db-init placement-db-sync --ignore-not-found
 
-  echo "Background task: Triggering Placement Helm upgrade..."
-  export OVERRIDES_DIR={{ workspace_dir }}/openstack-helm/overrides
-  helm upgrade placement {{ workspace_dir }}/openstack-helm/placement \
-    --namespace=openstack \
-    --kubeconfig="$KUBECONFIG" \
-    -f ${OVERRIDES_DIR}/placement/2025.1-ubuntu_noble.yaml
+  # NOT re-triggering a helm upgrade here. This used to run
+  # `helm upgrade placement ... -f ${OVERRIDES_DIR}/placement/...yaml`,
+  # a file that never existed on any host that deployed via the
+  # argocd/GitOps role (confirmed by a real "no such file or
+  # directory" error on Aug 2 2026's reboot) -- and even where it
+  # exists, a host-side helm upgrade directly fights Argo CD, which
+  # already owns the `placement` release declaratively (see
+  # gitops/apps/*-placement.yaml and *-placement-hook-jobs.yaml).
+  # Deleting the Jobs above is enough on its own: Argo CD's
+  # `selfHeal: true` notices they're gone and recreates them from the
+  # correct, current chart state on its own next reconcile -- no
+  # separate trigger needed here.
 
   echo "Background task: Waiting for placement-db-sync job to exist and finish..."
   until kubectl get job/placement-db-sync -n openstack &>/dev/null; do sleep 2; done
