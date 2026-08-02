@@ -10,6 +10,18 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
+  # conf.ceph.global.mon_host: an earlier version of this file left
+  # this at the chart's default ("will be discovered"), on the
+  # (wrong) assumption that a job would resolve it automatically at
+  # runtime. Confirmed on a real cluster this is NOT the case: the
+  # ceph-adapter-rook-namespace-client-ceph-config Job runs and
+  # completes, but writes the literal string "will be discovered"
+  # into the ceph-etc ConfigMap unchanged -- Cinder's storage-init Job
+  # then fails trying to parse that string as a mon address
+  # ("unable to parse addrs in 'will be discovered'"). Setting it
+  # explicitly instead, using Rook's stable per-mon Service DNS name
+  # (matches mon.count: 1 in 02-rook-ceph-cluster.yaml -- single mon,
+  # always named "a").
   source:
     repoURL: https://opendev.org/openstack/openstack-helm.git
     targetRevision: master
@@ -19,6 +31,8 @@ spec:
       parameters:
         - name: conf.ceph.global.mon_count
           value: "1"
+        - name: conf.ceph.global.mon_host
+          value: "rook-ceph-mon-a.ceph.svc.cluster.local:6789"
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
