@@ -1,4 +1,8 @@
 ---
+# See gitops/manifests/envoy-gateway-install/job.yaml for why this is
+# a Job wrapping plain `helm upgrade --install` rather than Argo CD's
+# native OCI Helm source (which hits a confirmed, intermittent open
+# upstream bug for this specific chart -- argo-cd#22100).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -10,24 +14,14 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  # OCI Helm source. This part of the syntax turned out fine -- an
-  # earlier session, on a different (now-decommissioned) VM, hit a 401
-  # error here that looked identical to a known Argo CD OCI bug
-  # (argo-cd#22100) -- but on THIS cluster this Application has been
-  # confirmed Synced/Healthy the whole time. Leaving native OCI source
-  # in place rather than replacing it with an unneeded workaround.
   source:
-    repoURL: oci://registry-1.docker.io/envoyproxy
-    chart: gateway-helm
-    targetRevision: v1.7.4
-    helm:
-      releaseName: eg
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/manifests/envoy-gateway-install
   destination:
     server: https://kubernetes.default.svc
-    namespace: envoy-gateway-system
+    namespace: kube-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true

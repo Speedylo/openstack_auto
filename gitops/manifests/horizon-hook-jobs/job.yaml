@@ -1,0 +1,59 @@
+---
+# Workaround for argoproj/argo-cd#23555 (confirmed, currently open):
+# Argo CD does not create Helm-hook-annotated resources defined by
+# openstack-helm charts -- and this is NOT limited to Jobs. Confirmed
+# on a real cluster that keystone-credential-keys/keystone-fernet-keys
+# are plain Secrets with "helm.sh/hook: pre-install", not Jobs, and an
+# earlier version of this workaround only extracted kind: Job, silently
+# missing them. Filtering by the helm.sh/hook annotation itself (any
+# resource kind) instead of by kind: Job is the correct, complete fix
+# for this class of problem.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: horizon-hook-job-precreate
+  namespace: openstack
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: horizon-hook-job-precreate
+      restartPolicy: OnFailure
+      volumes:
+        - name: shared
+          emptyDir: {}
+      initContainers:
+        - name: render
+          image: alpine/helm:3.16.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache git >/dev/null
+              git clone --depth 1 --branch master \
+                https://opendev.org/openstack/openstack-helm.git /tmp/openstack-helm
+              cd /tmp/openstack-helm/horizon
+              helm dependency build >/dev/null 2>&1 || true
+              helm template horizon . --namespace openstack > /shared/rendered.yaml
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        - name: extract-and-create
+          image: alpine/k8s:1.31.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              awk '/^---/{n++} {print > ("/tmp/doc-" n ".yaml")}' /shared/rendered.yaml
+              for f in /tmp/doc-*.yaml; do
+                if grep -q "helm.sh/hook" "$f" 2>/dev/null; then
+                  echo "Creating: $(grep 'name:' "$f" | head -1)"
+                  kubectl create -f "$f" || true
+                fi
+              done
+          volumeMounts:
+            - name: shared
+              mountPath: /shared

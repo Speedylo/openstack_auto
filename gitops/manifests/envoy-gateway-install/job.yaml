@@ -1,0 +1,31 @@
+---
+# Argo CD's native OCI Helm source hits a confirmed, open upstream bug
+# with this exact chart (argoproj/argo-cd#22100). Initially assumed
+# fixed/not-applicable after this Application synced cleanly once on a
+# fresh VM rebuild -- wrong assumption, confirmed: the 401 recurred on
+# this same cluster on a later sync, matching the bug report's
+# description of intermittent behavior. Sidestepping it with plain
+# `helm upgrade --install` in a Job instead, which doesn't go through
+# Argo CD's OCI resolution code path at all.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: envoy-gateway-install
+  namespace: kube-system
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: envoy-gateway-installer
+      restartPolicy: OnFailure
+      containers:
+        - name: helm-install
+          image: alpine/helm:3.16.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
+                --version v1.7.4 \
+                --namespace envoy-gateway-system --create-namespace
