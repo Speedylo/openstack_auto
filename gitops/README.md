@@ -107,24 +107,36 @@ scheduling depends on them.
   on it.
 - **Cinder's `mon_host`** (`kubectl get pods -o jsonpath=...podIP`, a
   pod IP that goes stale on reschedule): ~~dropped entirely, no
-  replacement needed~~ — **that was wrong, corrected back.** I'd read
-  `ceph-adapter-rook`'s docs as describing a runtime auto-discovery
-  job and dropped the manual override on that basis. Confirmed on a
-  real cluster this doesn't hold: the
+  replacement needed~~ — **that was wrong, corrected back, twice.**
+  First mistake: I'd read `ceph-adapter-rook`'s docs as describing a
+  runtime auto-discovery job and dropped the manual override entirely.
+  Confirmed on a real cluster this doesn't hold — the
   `ceph-adapter-rook-namespace-client-ceph-config` Job runs and
   reports `Complete`, but writes the literal string
   `"will be discovered"` into the shared `ceph-etc` ConfigMap
-  unchanged — `"will be discovered"` is a values placeholder meaning
-  "you set this," not something a job resolves at runtime. Cinder's
-  `cinder-storage-init` failed outright trying to parse that string as
-  a mon address. Fixed by setting `conf.ceph.global.mon_host`
-  explicitly in `03-ceph-adapter-rook.yaml`, using Rook's stable
-  per-mon Service DNS name (`rook-ceph-mon-a.ceph.svc.cluster.local:6789`
-  — matches `mon.count: 1`, so there's always exactly one mon, always
-  named `a`) rather than the original script's pod-IP hack. This is
-  set once, at the `ceph-adapter-rook` level, so `nova`/`libvirt`/
-  `glance` inherit the same correct value through the shared
-  `ceph-etc` ConfigMap — no per-chart override needed for those.
+  unchanged; that string is a values placeholder meaning "you set
+  this," not something a job resolves at runtime.
+
+  Second mistake, fixing the first one: I set
+  `conf.ceph.global.mon_host` to a Service DNS name
+  (`rook-ceph-mon-a.ceph.svc.cluster.local`) — also wrong, also
+  confirmed on a real cluster: no such Service exists. Because
+  `02-rook-ceph-cluster.yaml` sets `network.provider: host`, Rook's
+  mon binds directly to the *node's* own IP — there's no ClusterIP
+  Service to create at all, by design, so no DNS name could ever have
+  worked here.
+
+  Actually correct now: the node's real IP:port, cross-verified
+  against Rook's own `rook-ceph-mon-endpoints` ConfigMap in the `ceph`
+  namespace (the authoritative source if this ever needs re-checking:
+  `kubectl get configmap -n ceph rook-ceph-mon-endpoints -o
+  jsonpath='{.data.data}'`). This is inherently tied to this specific
+  node's IP — confirmed stable across a reboot of the same VM, but
+  **will need updating by hand if this project ever moves to a
+  different VM/IP** (as happened once already this session). Set once
+  at the `ceph-adapter-rook` level, so `nova`/`libvirt`/`glance`
+  inherit the same value through the shared `ceph-etc` ConfigMap — no
+  per-chart override needed for those.
 
 ## Known gaps — please read before relying on this
 

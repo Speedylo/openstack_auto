@@ -18,10 +18,23 @@ spec:
   # completes, but writes the literal string "will be discovered"
   # into the ceph-etc ConfigMap unchanged -- Cinder's storage-init Job
   # then fails trying to parse that string as a mon address
-  # ("unable to parse addrs in 'will be discovered'"). Setting it
-  # explicitly instead, using Rook's stable per-mon Service DNS name
-  # (matches mon.count: 1 in 02-rook-ceph-cluster.yaml -- single mon,
-  # always named "a").
+  # ("unable to parse addrs in 'will be discovered'").
+  #
+  # First fix attempt used a Service DNS name
+  # (rook-ceph-mon-a.ceph.svc.cluster.local) -- also wrong, confirmed:
+  # no such Service exists. Because 02-rook-ceph-cluster.yaml sets
+  # network.provider: host, Rook's mon binds directly to the NODE's
+  # own IP -- there's no ClusterIP Service to create at all, by
+  # design. Correct value is the node's actual IP:port, confirmed
+  # against Rook's own rook-ceph-mon-endpoints ConfigMap in the `ceph`
+  # namespace (`kubectl get configmap -n ceph rook-ceph-mon-endpoints
+  # -o jsonpath='{.data.data}'`), which will always have the current
+  # authoritative value if this ever needs re-checking.
+  #
+  # This is inherently tied to this specific node's IP -- stable
+  # across reboots of the same VM (confirmed), but would need updating
+  # by hand if this ever moves to a different VM/IP (e.g. another
+  # full rebuild, as happened once already in this project).
   source:
     repoURL: https://opendev.org/openstack/openstack-helm.git
     targetRevision: master
@@ -32,7 +45,7 @@ spec:
         - name: conf.ceph.global.mon_count
           value: "1"
         - name: conf.ceph.global.mon_host
-          value: "rook-ceph-mon-a.ceph.svc.cluster.local:6789"
+          value: "192.168.10.145:6789"
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
