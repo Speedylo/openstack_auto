@@ -35,7 +35,7 @@ spec:
                 https://opendev.org/openstack/openstack-helm.git /tmp/openstack-helm
               cd /tmp/openstack-helm/glance
               helm dependency build >/dev/null 2>&1 || true
-              helm template glance . --namespace openstack > /shared/rendered.yaml
+              helm template glance . --namespace openstack --set storage=pvc > /shared/rendered.yaml
           volumeMounts:
             - name: shared
               mountPath: /shared
