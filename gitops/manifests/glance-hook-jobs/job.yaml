@@ -8,6 +8,20 @@
 # missing them. Filtering by the helm.sh/hook annotation itself (any
 # resource kind) instead of by kind: Job is the correct, complete fix
 # for this class of problem.
+#
+# --set storage=pvc: a SEPARATE bug from the above, specific to this
+# chart. This render was using bare chart defaults with no -f values
+# files at all, unlike the real `glance` Application (05-glance.yaml),
+# which correctly applies storage: pvc via values/glance-local.yaml.
+# The chart's own default is storage: swift -- confirmed on a real
+# cluster this caused glance-storage-init to render with
+# STORAGE_BACKEND=swift and attempt Swift Temp URL setup (failing,
+# since no Swift service exists in this deployment; initially
+# misdiagnosed as an upstream openstack-helm bug before tracing it
+# back to this render never seeing our override at all). The chart's
+# own template logic (job-storage-init.yaml) is correctly gated on
+# `eq .Values.storage "swift"` -- passing the right value here is the
+# actual, complete fix.
 apiVersion: batch/v1
 kind: Job
 metadata:

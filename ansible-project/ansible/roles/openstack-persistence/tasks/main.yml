@@ -88,3 +88,32 @@
     name: clean-shutdown.service
     enabled: true
     daemon_reload: true
+
+# ==========================================================
+# Boot-time reconcile: automates the recovery steps that a daily
+# cold-start otherwise requires by hand (MariaDB tc.log recovery,
+# recreating one-shot hook Jobs wiped by the boot, nudging pods stuck
+# in Init after their dependencies came back). Companion to
+# clean-shutdown.service — together they make the daily
+# evening-shutdown / morning-boot cycle hands-off.
+# ==========================================================
+- name: Deploy openstack-boot-reconcile script
+  template:
+    src: openstack-boot-reconcile.sh.j2
+    dest: /usr/local/bin/openstack-boot-reconcile.sh
+    mode: "0755"
+
+- name: Deploy openstack-boot-reconcile systemd unit
+  template:
+    src: openstack-boot-reconcile.service.j2
+    dest: /etc/systemd/system/openstack-boot-reconcile.service
+    mode: "0644"
+  notify: daemon-reload systemd
+
+- name: Enable openstack-boot-reconcile service
+  systemd:
+    name: openstack-boot-reconcile.service
+    enabled: true
+    daemon_reload: true
+    # Enabled for boot, not started here — it's a boot-time reconcile,
+    # meaningful only after a fresh k3s start, not mid-playbook-run.

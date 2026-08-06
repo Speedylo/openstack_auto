@@ -1,0 +1,139 @@
+#!/bin/bash
+# ==========================================================
+# Boot-time reconcile for the daily cold-start cycle.
+#
+# This cluster is shut down every evening and cold-booted every
+# morning. Across this project we found a recurring set of things that
+# a cold boot leaves in a stuck state, each of which we'd been fixing
+# by hand every morning. This script does all of them automatically,
+# once, after k3s and MariaDB are back — so the morning boot is
+# hands-off.
+#
+# It is intentionally idempotent and defensive: every step is safe to
+# run when there was nothing wrong, so it can run unconditionally on
+# every boot. `set -e` is deliberately NOT used — one failing step
+# (e.g. a resource that doesn't exist yet) must not abort the rest.
+# ==========================================================
+
+export KUBECONFIG={{ kubeconfig_path | default('/etc/rancher/k3s/k3s.yaml') }}
+LOG_TAG="boot-reconcile"
+log() { echo "[$LOG_TAG] $*"; }
+
+# --- 0. Wait for the API server to actually be reachable -----------
+log "Waiting for k3s API to be reachable..."
+for i in $(seq 1 60); do
+  if kubectl get --raw='/readyz' &>/dev/null; then
+    log "API server ready."
+    break
+  fi
+  sleep 5
+done
+
+# --- 1. MariaDB tc.log corruption recovery -------------------------
+# The single worst recurring cold-boot failure. If mariadb-server-0
+# is CrashLoopBackOff'ing on "Crash recovery failed ... delete tc
+# log", the daemon never starts and every DB-dependent service stalls.
+# clean-shutdown.service should prevent this, but if a shutdown was
+# ever unclean (power loss, kill -9, timeout), this repairs it.
+reconcile_mariadb() {
+  log "Checking MariaDB health..."
+  # Give it a chance to come up on its own first.
+  for i in $(seq 1 24); do
+    if kubectl get pod mariadb-server-0 -n openstack \
+         -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null | grep -q true; then
+      log "MariaDB is ready."
+      return 0
+    fi
+    sleep 5
+  done
+
+  log "MariaDB not ready after wait — attempting tc.log recovery."
+  # Delete the corrupt tc.log inside the pod (works whether or not
+  # the mariadb container is currently up, via the running pod's fs).
+  kubectl exec -n openstack mariadb-server-0 -c mariadb -- \
+    rm -f /var/lib/mysql/tc.log 2>/dev/null \
+    && log "Removed tc.log." \
+    || log "Could not exec into pod to remove tc.log (may be mid-crash); will recreate pod anyway."
+
+  # Recreate the pod so mysqld restarts clean.
+  kubectl delete pod mariadb-server-0 -n openstack 2>/dev/null \
+    && log "Recreated mariadb-server-0."
+
+  # Wait again for it to actually come ready post-recovery.
+  for i in $(seq 1 36); do
+    if kubectl get pod mariadb-server-0 -n openstack \
+         -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null | grep -q true; then
+      log "MariaDB ready after recovery."
+      return 0
+    fi
+    sleep 5
+  done
+  log "WARNING: MariaDB still not ready after recovery attempt."
+}
+reconcile_mariadb
+
+# --- 2. Recreate hook-Jobs that a cold boot / MariaDB recycle wiped -
+# The *-db-sync / *-storage-init / etc. Jobs that our *-hook-jobs
+# Argo CD Applications create (workaround for argo-cd#23555) are
+# one-shot. A cold boot (and especially any MariaDB pod recycle)
+# leaves the dependent services waiting on Jobs that no longer exist.
+# Re-triggering each hook-jobs Application recreates them. selfHeal
+# will also do this eventually, but we force it so the morning is fast.
+reconcile_hook_jobs() {
+  log "Re-triggering hook-job Applications..."
+  for app in keystone-hook-jobs cinder-hook-jobs glance-hook-jobs \
+             heat-hook-jobs placement-hook-jobs nova-hook-jobs \
+             neutron-hook-jobs horizon-hook-jobs; do
+    # Delete the precreate Job (immutable template; must be recreated
+    # to re-run) and force the Application to sync.
+    kubectl delete job -n openstack "${app%-jobs}-job-precreate" \
+      --ignore-not-found 2>/dev/null
+    kubectl -n argocd patch application "$app" --type merge -p \
+      '{"operation":{"initiatedBy":{"username":"boot-reconcile"},"sync":{"syncStrategy":{"hook":{}}}}}' \
+      2>/dev/null \
+      && log "  re-synced $app"
+  done
+}
+reconcile_hook_jobs
+
+# --- 3. Nudge stale pods stuck in Init after their deps came back ---
+# kubernetes-entrypoint init containers snapshot dependency state at
+# pod start and don't always re-resolve cleanly once a dependency
+# (MariaDB, a recreated Job) becomes available post-boot. Deleting the
+# stuck pods lets their Deployments/Jobs recreate them against current
+# state. We only delete pods that are NOT ready and NOT Completed, so
+# healthy and finished pods are never touched.
+reconcile_stuck_pods() {
+  log "Nudging pods stuck in Init/not-ready..."
+  # Give hook-jobs from step 2 a moment to actually create their Jobs,
+  # and give normally-starting pods a fair chance to come up on their
+  # own before we consider them "stuck".
+  sleep 120
+  # Only nudge pods older than this many seconds — a pod that started
+  # 20s ago and is still in Init is probably just booting normally,
+  # not stuck. Something still in Init after this long on a cold boot
+  # is the stale-dependency-snapshot problem we keep hitting.
+  MIN_AGE=240
+  now=$(date +%s)
+  kubectl get pods -n openstack \
+    -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{" "}{.metadata.creationTimestamp}{" "}{.status.containerStatuses[0].ready}{"\n"}{end}' 2>/dev/null | \
+  while read -r name phase created ready _rest; do
+    [ -z "$name" ] && continue
+    # Never touch pods that finished their work.
+    case "$phase" in
+      Succeeded) continue ;;
+    esac
+    # Never touch already-ready pods.
+    [ "$ready" = "true" ] && continue
+    # Age gate: skip anything younger than MIN_AGE.
+    created_epoch=$(date -d "$created" +%s 2>/dev/null || echo "$now")
+    age=$(( now - created_epoch ))
+    [ "$age" -lt "$MIN_AGE" ] && continue
+    # Old + not ready + not finished = stuck. Nudge it.
+    kubectl delete pod -n openstack "$name" 2>/dev/null \
+      && log "  nudged $name (phase=$phase, age=${age}s)"
+  done
+}
+reconcile_stuck_pods
+
+log "Boot reconcile complete."

@@ -20,6 +20,7 @@ spec:
     repoURL: "git@github.com:Speedylo/openstack_auto.git"
     targetRevision: "main"
     path: gitops/manifests/metallb-config
+    directory: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: metallb-system

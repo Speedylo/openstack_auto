@@ -1,0 +1,19 @@
+[Unit]
+Description=Boot-time reconcile for OpenStack-Helm daily cold-start
+# Runs after k3s is up (needs the API server). network-online so
+# image pulls / DNS work. Ordered after network-plumbing so br-ex and
+# the MariaDB/placement recovery in that script have already run.
+After=k3s.service network-online.target openstack-network-plumbing.service
+Wants=k3s.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/openstack-boot-reconcile.sh
+# Generous timeout: the MariaDB wait + hook-job resync + pod nudge can
+# legitimately take several minutes on a cold boot. Don't let systemd
+# kill it early.
+TimeoutStartSec=900
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

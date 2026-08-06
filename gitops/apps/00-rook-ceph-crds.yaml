@@ -17,6 +17,7 @@ spec:
     repoURL: git@github.com:Speedylo/openstack_auto.git
     targetRevision: main
     path: gitops/manifests/rook-ceph-crds
+    directory: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
