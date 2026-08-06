@@ -1,0 +1,2 @@
+!gitops/charts/openstack-helm/**/charts/*.tgz
+.claude/

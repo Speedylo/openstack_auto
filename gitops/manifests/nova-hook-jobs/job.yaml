@@ -30,7 +30,7 @@ spec:
               set -e
               apk add --no-cache git >/dev/null
               git clone --depth 1 --branch master \
-                https://opendev.org/openstack/openstack-helm.git /tmp/openstack-helm
+                https://github.com/openstack/openstack-helm.git /tmp/openstack-helm
               cd /tmp/openstack-helm/nova
               helm dependency build >/dev/null 2>&1 || true
               helm template nova . --namespace openstack > /shared/rendered.yaml
