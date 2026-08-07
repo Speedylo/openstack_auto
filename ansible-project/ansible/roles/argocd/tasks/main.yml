@@ -72,14 +72,21 @@
         replicas: 1
       server:
         replicas: 1
-        # No public DNS/cert set up yet for Argo CD's own UI at this
-        # stage — plaintext until that's addressed. Do not carry this
-        # into anything beyond a lab environment.
-        insecure: true
       repoServer:
         replicas: 1
       applicationSet:
         replicas: 1
+      configs:
+        params:
+          # No public DNS/cert set up yet for Argo CD's own UI at this
+          # stage — plaintext until that's addressed. Do not carry this
+          # into anything beyond a lab environment. NOTE: server.insecure
+          # under `server:` (the old location here) is NOT a valid values
+          # path on argo-cd chart 10.2.2 and silently does nothing --
+          # confirmed via `helm get values` showing it accepted but
+          # `argocd-cmd-params-cm` never getting a server.insecure key.
+          # This is the correct path, per the chart's own install NOTES.
+          server.insecure: true
 
 - name: Wait for the Argo CD application controller StatefulSet to be ready
   become_user: "{{ kube_user }}"
