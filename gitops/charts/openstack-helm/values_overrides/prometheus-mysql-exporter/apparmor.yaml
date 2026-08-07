@@ -1,0 +1,14 @@
+---
+pod:
+  security_context:
+    prometheus_mysql_exporter:
+      container:
+        exporter:
+          appArmorProfile:
+            type: RuntimeDefault
+    prometheus_create_mysql_user:
+      container:
+        main:
+          appArmorProfile:
+            type: RuntimeDefault
+...

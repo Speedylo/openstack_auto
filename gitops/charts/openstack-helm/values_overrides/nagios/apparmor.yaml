@@ -1,0 +1,23 @@
+---
+pod:
+  security_context:
+    monitoring:
+      container:
+        nagios:
+          appArmorProfile:
+            type: RuntimeDefault
+        define_nagios_hosts:
+          appArmorProfile:
+            type: RuntimeDefault
+        apache_proxy:
+          appArmorProfile:
+            type: RuntimeDefault
+        helm_tests:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

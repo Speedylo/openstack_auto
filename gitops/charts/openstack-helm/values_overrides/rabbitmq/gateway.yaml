@@ -1,0 +1,34 @@
+# Gateway API overrides for RabbitMQ.
+#
+# Public endpoints use *.openstack-helm.org FQDNs which are resolved by
+# dnsmasq to the MetalLB Gateway VIP. In-cluster pods reach the Gateway
+# through this DNS path so no ExternalName services are needed.
+---
+endpoints:
+  oslo_messaging:
+    host_fqdn_override:
+      public:
+        host: rabbitmq.openstack-helm.org
+
+extraObjects:
+  rabbitmq_route:
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: rabbitmq-route
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      hostnames:
+        - "{{ .Values.endpoints.oslo_messaging.host_fqdn_override.public.host }}"
+      parentRefs:
+        - name: gateway-default
+          namespace: envoy-gateway-system
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: rabbitmq
+              port: 15672
+...

@@ -1,0 +1,8 @@
+---
+images:
+  tags:
+    ovn_ovsdb_nb: quay.io/airshipit/ovn:ubuntu_noble
+    ovn_ovsdb_sb: quay.io/airshipit/ovn:ubuntu_noble
+    ovn_northd: quay.io/airshipit/ovn:ubuntu_noble
+    ovn_controller: quay.io/airshipit/ovn:ubuntu_noble
+...

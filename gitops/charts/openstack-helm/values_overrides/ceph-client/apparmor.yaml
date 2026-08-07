@@ -1,0 +1,37 @@
+---
+pod:
+  security_context:
+    checkdns:
+      container:
+        checkdns:
+          appArmorProfile:
+            type: RuntimeDefault
+    mds:
+      container:
+        mds:
+          appArmorProfile:
+            type: RuntimeDefault
+        init_dirs:
+          appArmorProfile:
+            type: RuntimeDefault
+    rbd_pool:
+      container:
+        rbd_pool:
+          appArmorProfile:
+            type: RuntimeDefault
+    bootstrap:
+      container:
+        bootstrap:
+          appArmorProfile:
+            type: RuntimeDefault
+    test:
+      container:
+        test:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

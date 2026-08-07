@@ -1,0 +1,204 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Playbook for compute-kit deployment and testing.
+#
+# Supports both OVS and OVN backends. To deploy with OVN, include
+# "ovn.yaml" in osh_values_overrides at the job level:
+#   vars:
+#     osh_values_overrides:
+#       - "2026.1-ubuntu_noble.yaml"
+#       - "gateway.yaml"
+#       - "ovn.yaml"
+#
+# The ovn.yaml override files exist per chart (openvswitch, libvirt,
+# nova, neutron) and are applied automatically when present.
+#
+# Usage in zuul.d job definition:
+#   run:
+#     - playbooks/deploy-env.yaml
+#     - playbooks/deploy-compute-kit.yaml
+---
+- hosts: primary
+  tasks:
+    - name: Prepare Kubernetes
+      include_role:
+        name: deploy-charts
+        tasks_from: prepare-k8s
+
+    - name: Prepare charts
+      include_role:
+        name: deploy-charts
+        tasks_from: prepare-charts
+
+    - name: Setup OpenStack client
+      include_role:
+        name: deploy-charts
+        tasks_from: setup-client
+
+    # Optional Ceph, enabled only by the TLS job (for cinder's RBD backend).
+    # Deployed before any OpenStack chart, matching the order in deploy-cinder.
+    - name: Deploy Ceph Rook
+      include_role:
+        name: deploy-ceph
+      when: cinder_enabled | default(false)
+
+    - name: Deploy Ceph adapter Rook
+      include_role:
+        name: deploy-charts
+        tasks_from: ceph-adapter-rook
+      when: cinder_enabled | default(false)
+
+    - name: Deploy RabbitMQ
+      include_role:
+        name: deploy-charts
+        tasks_from: rabbitmq
+
+    # Skipped when the database is provided by mariadb-operator instead, which
+    # playbooks/deploy-mariadb-operator.yaml has already set up.
+    - name: Deploy MariaDB
+      include_role:
+        name: deploy-charts
+        tasks_from: mariadb
+      when: not (mariadb_operator_enabled | default(false))
+
+    - name: Deploy Memcached
+      include_role:
+        name: deploy-charts
+        tasks_from: memcached
+
+    - name: Deploy Keystone
+      include_role:
+        name: deploy-charts
+        tasks_from: keystone
+
+    # Optional cinder, enabled only by the TLS job so its nginx TLS sidecar is
+    # exercised. Deployed right after keystone, matching the order in
+    # deploy-cinder (ceph + keystone already up by this point).
+    - name: Deploy Cinder
+      include_role:
+        name: deploy-charts
+        tasks_from: cinder
+      when: cinder_enabled | default(false)
+
+    - name: Deploy Heat
+      include_role:
+        name: deploy-charts
+        tasks_from: heat
+
+    - name: Deploy Glance
+      include_role:
+        name: deploy-charts
+        tasks_from: glance
+      vars:
+        osh_glance_backend: local
+
+    - name: Deploy Open vSwitch
+      include_role:
+        name: deploy-charts
+        tasks_from: openvswitch
+
+    - name: Deploy Libvirt
+      include_role:
+        name: deploy-charts
+        tasks_from: libvirt
+
+    - name: Deploy OVN
+      include_role:
+        name: deploy-charts
+        tasks_from: ovn
+      when: "'ovn.yaml' in (osh_values_overrides | default([]))"
+
+    - name: Deploy Placement
+      include_role:
+        name: deploy-charts
+        tasks_from: placement
+
+    - name: Deploy Nova
+      include_role:
+        name: deploy-charts
+        tasks_from: nova
+
+    - name: Deploy Neutron
+      include_role:
+        name: deploy-charts
+        tasks_from: neutron
+
+    # Optional horizon, enabled only by the TLS job so its nginx TLS sidecar is
+    # exercised. Deployed after the compute-kit charts (nova/neutron).
+    - name: Deploy Horizon
+      include_role:
+        name: deploy-charts
+        tasks_from: horizon
+      when: horizon_enabled | default(false)
+
+    - name: Run Helm tests
+      include_role:
+        name: deploy-charts
+        tasks_from: _test
+      vars:
+        osh_chart: "{{ item }}"
+      loop:
+        - neutron
+        - nova
+        - glance
+        - keystone
+
+    - name: Verify MariaDB TLS is used by services that enable it
+      shell: |
+        set -e
+        ./tools/deployment/common/verify-mariadb-tls.sh {{ item }} {{ osh_namespace | default('osh') }}
+      args:
+        chdir: "{{ osh_git_repo }}"
+        executable: /bin/bash
+      # nova no longer exposes a <svc>-db-user secret: its api and cell1 DB
+      # connections live in nova.conf (the [api_database] and [database]
+      # sections) and only cell0 keeps a user/admin secret pair.
+      # Point nova's check at the cell0 secrets; the empty string lets every
+      # other service fall back to the default <svc>-db-user / <svc>-db-admin.
+      environment:
+        USER_SECRET: "{{ 'nova-db-cell0-user' if item == 'nova' else '' }}"
+        ADMIN_SECRET: "{{ 'nova-db-cell0-admin' if item == 'nova' else '' }}"
+      loop:
+        - keystone
+        - glance
+        - nova
+        - neutron
+        - placement
+        - heat
+
+    - name: Verify RabbitMQ mTLS is used by services that enable it
+      shell: |
+        set -e
+        ./tools/deployment/common/verify-rabbitmq-tls.sh {{ item }} {{ osh_namespace | default('osh') }}
+      args:
+        chdir: "{{ osh_git_repo }}"
+        executable: /bin/bash
+      loop:
+        - keystone
+        - glance
+        - nova
+        - neutron
+        - heat
+
+    - name: Run functional tests
+      shell: |
+        set -xe
+        {{ item }}
+      args:
+        chdir: "{{ osh_git_repo }}"
+        executable: /bin/bash
+      environment:
+        DPDK_ENABLED: "{{ 'enabled' if 'dpdk.yaml' in (osh_values_overrides | default([])) else 'disabled' }}"
+      loop:
+        - ./tools/deployment/common/use-it.sh
+        - ./tools/deployment/common/force-cronjob-run.sh

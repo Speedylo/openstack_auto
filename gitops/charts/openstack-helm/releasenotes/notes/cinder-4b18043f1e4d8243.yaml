@@ -1,0 +1,13 @@
+---
+cinder:
+  - |
+    Add PVC support for the cinder-volume conversion directory. The
+    ``/var/lib/cinder/conversion`` directory is used as a temporary workspace
+    during image conversion operations (e.g., image-to-volume). When large
+    images are processed frequently, the emptyDir backend can exhaust the
+    node's root filesystem and cause disk pressure or pod eviction. Operators
+    can now set ``conf.enable_conversion_pvc: true`` and
+    ``manifests.pvc_conversion: true`` to mount this directory from a
+    PersistentVolumeClaim and isolate conversion I/O onto a dedicated storage
+    backend (e.g., Ceph RBD, NFS, local-path).
+...

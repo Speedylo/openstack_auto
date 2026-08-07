@@ -1,0 +1,11 @@
+---
+network:
+  backend:
+    - ovn
+
+conf:
+  nova:
+    DEFAULT:
+      vif_plugging_is_fatal: true
+      vif_plugging_timeout: 300
+...

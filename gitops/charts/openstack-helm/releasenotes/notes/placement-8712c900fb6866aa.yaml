@@ -1,0 +1,5 @@
+---
+placement:
+  - |
+    Run placement-api pod with non-privileged user.
+...

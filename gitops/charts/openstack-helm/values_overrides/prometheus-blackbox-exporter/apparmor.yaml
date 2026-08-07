@@ -1,0 +1,9 @@
+---
+pod:
+  security_context:
+    prometheus_blackbox_exporter:
+      container:
+        blackbox_exporter:
+          appArmorProfile:
+            type: RuntimeDefault
+...

@@ -1,0 +1,19 @@
+---
+pod:
+  security_context:
+    manila:
+      container:
+        manila_api:
+          appArmorProfile:
+            type: RuntimeDefault
+    test:
+      container:
+        manila_test:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

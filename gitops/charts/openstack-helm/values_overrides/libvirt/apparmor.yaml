@@ -1,0 +1,9 @@
+---
+pod:
+  security_context:
+    libvirt:
+      container:
+        libvirt:
+          appArmorProfile:
+            type: RuntimeDefault
+...

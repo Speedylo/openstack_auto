@@ -1,0 +1,19 @@
+---
+pod:
+  security_context:
+    exporter:
+      container:
+        openstack_metrics_exporter:
+          appArmorProfile:
+            type: RuntimeDefault
+    ks_user:
+      container:
+        prometheus_openstack_exporter_ks_user:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

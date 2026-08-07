@@ -1,0 +1,59 @@
+---
+pod:
+  security_context:
+    cinder_api:
+      container:
+        cinder_api:
+          appArmorProfile:
+            type: RuntimeDefault
+        ceph_coordination_volume_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+    cinder_backup:
+      container:
+        cinder_backup:
+          appArmorProfile:
+            type: RuntimeDefault
+        ceph_coordination_volume_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+    cinder_scheduler:
+      container:
+        cinder_scheduler:
+          appArmorProfile:
+            type: RuntimeDefault
+        ceph_coordination_volume_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+    cinder_volume:
+      container:
+        cinder_volume:
+          appArmorProfile:
+            type: RuntimeDefault
+        ceph_coordination_volume_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+        init_cinder_conf:
+          appArmorProfile:
+            type: RuntimeDefault
+    storage_init:
+      container:
+        cinder_backup_storage_init:
+          appArmorProfile:
+            type: RuntimeDefault
+    create_internal_tenant:
+      container:
+        create_internal_tenant:
+          appArmorProfile:
+            type: RuntimeDefault
+    volume_usage_audit:
+      container:
+        cinder_volume_usage_audit:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

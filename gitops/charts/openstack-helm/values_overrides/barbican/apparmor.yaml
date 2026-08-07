@@ -1,0 +1,19 @@
+---
+pod:
+  security_context:
+    barbican:
+      container:
+        barbican_api:
+          appArmorProfile:
+            type: RuntimeDefault
+    test:
+      container:
+        barbican_test:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

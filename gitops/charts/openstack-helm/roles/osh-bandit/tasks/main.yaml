@@ -1,0 +1,67 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+- name: Install Helm
+  include_role:
+    name: ensure-helm
+
+- name: Install binary packages
+  become: true
+  apt:
+    name:
+      - jq
+    state: present
+    update_cache: yes
+
+- name: Install yq bandit
+  pip:
+    name:
+      - yq
+      - bandit=={{ bandit_version }}
+      - setuptools
+      - pbr
+    virtualenv: "{{ virtualenv }}"
+    virtualenv_command: python3 -m venv
+
+- name: Template out python files
+  shell: |
+    set -xe;
+    source "{{ virtualenv }}/bin/activate"
+    make all SKIP_CHANGELOG=1
+    mkdir -p python-files
+    EXCLUDES="helm-toolkit doc tests tools logs tmp roles playbooks releasenotes zuul.d python-files"
+    DIRS=`ls -d */ | cut -f1 -d'/'`
+
+    for EX in $EXCLUDES; do
+      DIRS=`echo $DIRS | sed "s/\b$EX\b//g"`
+    done
+
+    for DIR in $DIRS; do
+      PYFILES=$(helm template $DIR | yq 'select(.data != null) | .data | to_entries | map(select(.key | test(".*\\.py"))) | select(length > 0) | values[] | {(.key) : (.value)}' | jq -s add)
+      PYKEYS=$(echo "$PYFILES" | jq -r 'select(. != null) | keys[]')
+      for KEY in $PYKEYS; do
+        echo "$PYFILES" | jq -r --arg KEY "$KEY" '.[$KEY]' > ./python-files/"$DIR-$KEY"
+      done
+    done
+  args:
+    chdir: "{{ work_dir }}"
+    executable: /bin/bash
+
+- name: Run bandit against python files
+  shell: |
+    source "{{ virtualenv }}/bin/activate"
+    bandit -r ./python-files -s B404,B603
+  args:
+    chdir: "{{ work_dir }}"
+    executable: /bin/bash
+...

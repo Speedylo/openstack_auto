@@ -1,0 +1,62 @@
+---
+pod:
+  security_context:
+    master:
+      container:
+        elasticsearch_master:
+          appArmorProfile:
+            type: RuntimeDefault
+        elasticsearch_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+        memory_map_increase:
+          appArmorProfile:
+            type: RuntimeDefault
+    data:
+      container:
+        elasticsearch_data:
+          appArmorProfile:
+            type: RuntimeDefault
+        elasticsearch_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+        memory_map_increase:
+          appArmorProfile:
+            type: RuntimeDefault
+    client:
+      container:
+        elasticsearch_client:
+          appArmorProfile:
+            type: RuntimeDefault
+        memory_map_increase:
+          appArmorProfile:
+            type: RuntimeDefault
+        apache_proxy:
+          appArmorProfile:
+            type: RuntimeDefault
+    exporter:
+      container:
+        elasticsearch_exporter:
+          appArmorProfile:
+            type: RuntimeDefault
+    test:
+      container:
+        helm_tests:
+          appArmorProfile:
+            type: RuntimeDefault
+    create_template:
+      container:
+        create_elasticsearch_template:
+          appArmorProfile:
+            type: RuntimeDefault
+    verify_repositories:
+      container:
+        elasticsearch_verify_repositories:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

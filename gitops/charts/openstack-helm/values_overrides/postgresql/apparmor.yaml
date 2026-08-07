@@ -1,0 +1,35 @@
+---
+pod:
+  security_context:
+    server:
+      container:
+        postgresql:
+          appArmorProfile:
+            type: RuntimeDefault
+        set_volume_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+    prometheus_postgresql_exporter:
+      container:
+        postgresql_exporter:
+          appArmorProfile:
+            type: RuntimeDefault
+    create_user:
+      container:
+        prometheus_postgresql_exporter_create_user:
+          appArmorProfile:
+            type: RuntimeDefault
+    postgresql_backup:
+      container:
+        postgresql_backup:
+          appArmorProfile:
+            type: RuntimeDefault
+        backup_perms:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

@@ -1,0 +1,64 @@
+---
+# We download Calico manifest on all nodes because we then want to download
+# Calico images BEFORE deploying it, so that `kubectl wait` timeout
+# for `k8s-app=kube-dns` isn't reached by slow download speeds
+- name: Prepare Calico configuration
+  become: false
+  block:
+    - name: Download Calico manifest
+      get_url:
+        url: "{{ calico_manifest_url }}"
+        dest: /tmp/calico.yaml
+      register: calico_config
+
+    - name: Change registry URL
+      shell: sed -i -e 's#docker.io/calico/#quay.io/calico/#g' {{ calico_config.dest }}
+
+    - name: Amend settings for VXLAN setup
+      when: overlay_network_setup
+      shell: sed -i '/CALICO_IPV4POOL_IPIP/{n;s/Always/Never/}' {{ calico_config.dest }}
+
+- name: Download Calico images on K8s nodes beforehand
+  when: inventory_hostname in (groups['k8s_cluster'] | default([]))
+  shell: awk '/image:/ { print $2 }' {{ calico_config.dest }} | xargs -I{} crictl pull {}
+  environment:
+    CONTAINER_RUNTIME_ENDPOINT: "unix:///run/containerd/containerd.sock"
+    IMAGE_SERVICE_ENDPOINT: "unix:///run/containerd/containerd.sock"
+  args:
+    executable: /bin/bash
+
+- name: Deploy Calico from Control Plane node
+  become: false
+  when: inventory_hostname in (groups['primary'] | default([]))
+  block:
+    - name: Deploy Calico
+      command: kubectl apply -f {{ calico_config.dest }}
+
+    - name: Sleep before trying to check Calico pods
+      pause:
+        seconds: 30
+
+    - name: Wait for Calico pods ready
+      command: kubectl -n kube-system wait --timeout=20s --for=condition=Ready pods -l k8s-app=calico-node
+      register: calico_pods_wait
+      until: calico_pods_wait is succeeded
+      retries: 10
+
+    - name: Prepare Calico patch
+      copy:
+        src: files/calico_patch.yaml
+        dest: /tmp/calico_patch.yaml
+      register: calico_patch_config
+
+    - name: Patch Calico
+      command: kubectl -n kube-system patch daemonset calico-node --patch-file {{ calico_patch_config.dest }}
+
+    - name: Delete Calico pods (for hard restart)
+      command: kubectl -n kube-system delete pods -l k8s-app=calico-node
+
+    - name: Wait for Calico pods ready (after patch)
+      command: kubectl -n kube-system wait --timeout=20s --for=condition=Ready pods -l k8s-app=calico-node
+      register: calico_pods_wait
+      until: calico_pods_wait is succeeded
+      retries: 10
+...

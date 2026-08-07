@@ -1,0 +1,31 @@
+---
+endpoints:
+  object_store:
+    scheme:
+      default: https
+    host_fqdn_override:
+      default:
+        tls:
+          secretName: ceph-rgw-ks-tls-api
+          issuerRef:
+            name: ca-issuer
+            kind: ClusterIssuer
+  ceph_object_store:
+    scheme:
+      default: https
+    host_fqdn_override:
+      default:
+        tls:
+          secretName: ceph-rgw-s3-tls-api
+          issuerRef:
+            name: ca-issuer
+            kind: ClusterIssuer
+
+network:
+  api:
+    public: 192.168.0.0/16
+    cluster: 192.168.0.0/16
+
+manifests:
+  certificates: true
+...

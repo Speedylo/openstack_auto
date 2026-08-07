@@ -1,0 +1,34 @@
+# Gateway API overrides for Trove.
+#
+# Public endpoints use *.openstack-helm.org FQDNs which are resolved by
+# dnsmasq to the MetalLB Gateway VIP. In-cluster pods reach the Gateway
+# through this DNS path so no ExternalName services are needed.
+---
+endpoints:
+  database:
+    host_fqdn_override:
+      public:
+        host: trove.openstack-helm.org
+
+extraObjects:
+  trove_route:
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: trove-route
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      hostnames:
+        - "{{ .Values.endpoints.database.host_fqdn_override.public.host }}"
+      parentRefs:
+        - name: gateway-default
+          namespace: envoy-gateway-system
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: trove-api
+              port: 8779
+...

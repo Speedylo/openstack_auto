@@ -1,0 +1,33 @@
+---
+libvirt:
+  extraContainers:
+    - name: libvirt-exporter
+      image: ghcr.io/inovex/prometheus-libvirt-exporter:2.3.0
+      imagePullPolicy: IfNotPresent
+      args:
+        - --libvirt.uri=/run/libvirt/libvirt-sock-ro
+      ports:
+        - name: metrics
+          protocol: TCP
+          containerPort: 9177
+      livenessProbe:
+        httpGet:
+          path: /metrics
+          port: 9177
+        initialDelaySeconds: 30
+        periodSeconds: 60
+        timeoutSeconds: 5
+      readinessProbe:
+        httpGet:
+          path: /metrics
+          port: 9177
+        initialDelaySeconds: 15
+        periodSeconds: 60
+        timeoutSeconds: 5
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: run
+          mountPath: /run
+          mountPropagation: Bidirectional
+...

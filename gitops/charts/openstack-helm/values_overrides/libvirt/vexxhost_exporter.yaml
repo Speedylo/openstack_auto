@@ -1,0 +1,33 @@
+---
+libvirt:
+  extraContainers:
+    - name: libvirt-exporter
+      image: vexxhost/libvirtd-exporter:latest
+      imagePullPolicy: IfNotPresent
+      args:
+        - "--libvirt.nova"
+      ports:
+        - name: metrics
+          protocol: TCP
+          containerPort: 9474
+      livenessProbe:
+        httpGet:
+          path: /metrics
+          port: 9474
+        initialDelaySeconds: 30
+        periodSeconds: 60
+        timeoutSeconds: 5
+      readinessProbe:
+        httpGet:
+          path: /metrics
+          port: 9474
+        initialDelaySeconds: 15
+        periodSeconds: 60
+        timeoutSeconds: 5
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: run
+          mountPath: /run
+          mountPropagation: Bidirectional
+...

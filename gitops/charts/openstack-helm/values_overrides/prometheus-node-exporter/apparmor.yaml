@@ -1,0 +1,14 @@
+---
+pod:
+  security_context:
+    metrics:
+      container:
+        node_exporter:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

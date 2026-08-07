@@ -1,0 +1,27 @@
+---
+pod:
+  security_context:
+    dashboard:
+      container:
+        kibana:
+          appArmorProfile:
+            type: RuntimeDefault
+        apache_proxy:
+          appArmorProfile:
+            type: RuntimeDefault
+    register_kibana_indexes:
+      container:
+        register_kibana_indexes:
+          appArmorProfile:
+            type: RuntimeDefault
+    flush_kibana_metadata:
+      container:
+        flush_kibana_metadata:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

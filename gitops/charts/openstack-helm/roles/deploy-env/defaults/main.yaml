@@ -1,0 +1,123 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+kube_version_repo: "v1.35"
+# the list of k8s package versions are available here
+# https://pkgs.k8s.io/core:/stable:/{{ kube_version_repo }}/deb/Packages
+kube_version: "1.35.0-1.1"
+helm_version: "4.1.1"
+crictl_version: "v1.35.0"
+
+calico_setup: true
+calico_version: "v3.31.3"
+calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml"
+
+cilium_setup: false
+cilium_version: "1.17.4"
+
+flannel_setup: false
+flannel_version: v0.26.7
+
+gatewayapi_setup: true
+gatewayapi_implementation: "envoy"  # options: envoy
+gatewayapi_envoy_version: "v1.7.0"
+gatewayapi_backend_request_timeout: "300s"
+
+ingress_setup: false
+ingress_implementation: "haproxy"  # options: haproxy, nginx
+ingress_nginx_version: "4.12.2"
+ingress_haproxy_version: "0.15.0"
+ingress_openstack_setup: true
+ingress_ceph_setup: true
+ingress_osh_infra_setup: false
+
+kubectl:
+  user: zuul
+  group: zuul
+
+osh_plugin_repo: "https://opendev.org/openstack/openstack-helm-plugin.git"
+
+kubeadm:
+  pod_network_cidr: "10.244.0.0/16"
+  service_cidr: "10.96.0.0/16"
+docker:
+  root_path: /var/lib/docker
+docker_users:
+  - zuul
+containerd:
+  root_path: /var/lib/containerd
+loopback_setup: false
+loopback_device: /dev/loop100
+loopback_image: /var/lib/openstack-helm/ceph-loop.img
+loopback_image_size: 12G
+loopback_format: false
+loopback_format_fs_type: ext4
+loopback_mount: false
+loopback_mount_path: /srv/node/loop100
+
+coredns_resolver_setup: false
+coredns_dns_server: "8.8.8.8"
+# This will be appended to the Corefile after the main configuration block
+# Example: |
+#   example.com:53 {
+#     forward . 1.2.3.4
+#   }
+coredns_extra_config: ""
+
+metallb_setup: true
+metallb_version: "0.15.3"
+metallb_pool_cidr: "172.24.128.0/24"
+metallb_ingress_openstack_endpoint_cidr: "172.24.128.100/24"
+metallb_ingress_osh_infra_endpoint_cidr: "172.24.128.101/24"
+metallb_gatewayapi_endpoint_cidr: "172.24.128.102/24"
+
+client_cluster_ssh_setup: true
+client_ssh_user: zuul
+cluster_ssh_user: zuul
+
+cert_manager_setup: false
+cert_manager_version: "v1.20.2"
+
+floating_network_setup: false
+floating_network_cidr: "172.24.4.0/24"
+floating_network_gateway_cidr: "172.24.4.1/24"
+
+tcpproxy_cidr: "172.24.6.0/24"
+tcpproxy_gatewayapi_cidr: "172.24.6.1/24"
+tcpproxy_ingress_openstack_cidr: "172.24.6.2/24"
+# NFS-Ganesha (manila cephfsnfs backend) proxy IP. Tenant VMs reach
+# Ganesha via this address, which nginx (host network) forwards to the
+# Ganesha pod's actual node IP. The IP must live in tcpproxy_cidr.
+tcpproxy_nfs_ganesha_cidr: "172.24.6.3/24"
+
+tunnel_network_cidr: "172.24.5.0/24"
+tunnel_client_cidr: "172.24.5.2/24"
+tunnel_cluster_cidr: "172.24.5.1/24"
+
+dnsmasq_image: "quay.io/airshipit/neutron:2026.1-ubuntu_noble"
+dnsmasq_dns_server: "8.8.8.8"
+dnsmasq_extra_args: ""
+
+nginx_image: "quay.io/airshipit/nginx:alpine3.18"
+
+overlay_network_setup: true
+overlay_network_prefix: "10.248.0."
+overlay_network_vxlan_iface: vxlan42
+overlay_network_vxlan_id: 42
+# NOTE: This is to avoid conflicts with the vxlan overlay managed by Openstack
+# which uses 4789 by default. Some alternative implementations used to
+# leverage 8472, so let's use it.
+overlay_network_vxlan_port: 8472
+overlay_network_bridge_name: brvxlan
+overlay_network_bridge_ip: "{{ overlay_network_prefix }}{{ (groups['all'] | sort).index(inventory_hostname) + 1 }}"
+overlay_network_underlay_dev: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['interface'] }}"
+...

@@ -1,0 +1,130 @@
+---
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- job:
+    name: openstack-helm-bandit
+    nodeset: openstack-helm-1node-ubuntu_noble
+    roles:
+      - zuul: openstack/openstack-helm
+      - zuul: zuul/zuul-jobs
+    required-projects:
+      - openstack/openstack-helm
+    files:
+      - ^.*\.py\.tpl$
+      - ^.*\.py$
+      - ^playbooks/osh-bandit.yaml$
+    pre-run: playbooks/prepare-hosts.yaml
+    post-run: playbooks/collect-logs.yaml
+    run: playbooks/osh-bandit.yaml
+    vars:
+      bandit_version: "1.7.1"
+
+- job:
+    name: openstack-helm-deploy
+    abstract: true
+    roles:
+      - zuul: openstack/openstack-helm
+      - zuul: zuul/zuul-jobs
+    required-projects:
+      - openstack/openstack-helm
+      - openstack/openstack-helm-plugin
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^.*\.rst.gotmpl$
+      - ^doc/.*$
+      - ^releasenotes/.*$
+    timeout: 10800
+    pre-run:
+      - playbooks/prepare-hosts.yaml
+      - playbooks/mount-volumes.yaml
+      - playbooks/use-buildset-registry.yaml
+      - playbooks/inject-keys.yaml
+    post-run: playbooks/collect-logs.yaml
+    vars:
+      overlay_network_setup: true
+      extra_volume:
+        size: 80G
+        type: Linux
+        mount_point: /opt/ext_vol
+      docker:
+        root_path: "/opt/ext_vol/docker"
+      containerd:
+        root_path: "/opt/ext_vol/containerd"
+      kubeadm:
+        pod_network_cidr: "10.244.0.0/16"
+        service_cidr: "10.96.0.0/16"
+      osh_helm_repo: "{{ ansible_user_dir }}/{{ zuul.project.src_dir }}/../openstack-helm"
+      osh_plugin_repo: "{{ ansible_user_dir }}/{{ zuul.project.src_dir }}/../openstack-helm-plugin"
+      osh_git_repo: "{{ ansible_user_dir }}/{{ zuul.project.src_dir }}/../openstack-helm"
+      loopback_setup: true
+      loopback_device: /dev/loop100
+      loopback_image: "/opt/ext_vol/openstack-helm/ceph-loop.img"
+      ceph_osd_data_device: /dev/loop100
+      kube_version_repo: "v1.35"
+      kube_version: "1.35.0-1.1"
+      calico_setup: true
+      calico_version: "v3.31.3"
+      cilium_setup: false
+      cilium_version: "1.17.4"
+      flannel_setup: false
+      flannel_version: v0.26.7
+      metallb_setup: true
+      metallb_version: "0.15.3"
+      coredns_resolver_setup: false
+      ingress_setup: false
+      ingress_implementation: "haproxy"
+      gatewayapi_setup: true
+      gatewayapi_implementation: "envoy"
+      gatewayapi_envoy_version: "v1.7.0"
+      crictl_version: "v1.35.0"
+      floating_network_setup: true
+      openstack_client_image_tag: "2026.1-ubuntu_noble"
+
+- job:
+    name: openstack-helm-linter
+    run: playbooks/lint.yaml
+    nodeset: openstack-helm-1node-ubuntu_noble
+    required-projects:
+      - openstack/openstack-helm
+    irrelevant-files:
+      - ^.*\.rst$
+      - ^releasenotes/.*$
+    pre-run:
+      - playbooks/inject-keys.yaml
+
+- job:
+    name: openstack-helm-pre-commit
+    parent: tox-linters
+
+- job:
+    name: openstack-helm-publish-charts
+    timeout: 10800
+    parent: publish-openstack-artifacts
+    run: playbooks/build-chart.yaml
+    required-projects:
+      - openstack/openstack-helm
+    post-run: playbooks/publish/post.yaml
+
+- job:
+    name: openstack-helm-build-charts
+    timeout: 10800
+    nodeset: openstack-helm-1node-ubuntu_noble
+    roles:
+      - zuul: openstack/openstack-helm
+      - zuul: zuul/zuul-jobs
+    required-projects:
+      - openstack/openstack-helm
+    pre-run:
+      - playbooks/prepare-hosts.yaml
+    run: playbooks/build-chart.yaml
+...

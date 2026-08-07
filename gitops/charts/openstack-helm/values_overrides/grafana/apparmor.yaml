@@ -1,0 +1,45 @@
+---
+pod:
+  security_context:
+    dashboard:
+      container:
+        grafana:
+          appArmorProfile:
+            type: RuntimeDefault
+    db_init:
+      container:
+        grafana_db_init_session:
+          appArmorProfile:
+            type: RuntimeDefault
+        grafana_db_init:
+          appArmorProfile:
+            type: RuntimeDefault
+    db_session_sync:
+      container:
+        grafana_db_session_sync:
+          appArmorProfile:
+            type: RuntimeDefault
+    set_admin_user:
+      container:
+        grafana_set_admin_password:
+          appArmorProfile:
+            type: RuntimeDefault
+    run_migrator:
+      container:
+        grafana_run_migrator:
+          appArmorProfile:
+            type: RuntimeDefault
+        prepare_grafana_migrator:
+          appArmorProfile:
+            type: RuntimeDefault
+    test:
+      container:
+        helm_tests:
+          appArmorProfile:
+            type: RuntimeDefault
+    kubernetes_entrypoint:
+      container:
+        kubernetes_entrypoint:
+          appArmorProfile:
+            type: RuntimeDefault
+...

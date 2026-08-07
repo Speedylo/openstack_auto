@@ -1,0 +1,342 @@
+---
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- job:
+    name: openstack-helm-blazar-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-blazar.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^blazar/.*
+      - ^playbooks/deploy-blazar\.yaml
+
+- job:
+    name: openstack-helm-cinder-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-5nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-cinder.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+
+- job:
+    name: openstack-helm-cloudkitty-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-cloudkitty.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^cloudkitty/.*
+      - ^playbooks/deploy-cloudkitty\.yaml
+
+- job:
+    name: openstack-helm-compute-kit-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-compute-kit.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+
+- job:
+    name: openstack-helm-tls-2026-1-ubuntu_noble
+    description: |
+      Run the openstack-helm compute-kit job with TLS terminated end to end:
+      at the Envoy Gateway for public endpoints and by per-pod nginx sidecars
+      for the in-cluster API services (tls-gateway-and-sidecar.yaml per-chart
+      override), plus mariadb and rabbitmq mTLS. In addition to the compute kit
+      this also deploys Ceph, cinder and horizon so their TLS sidecars are
+      exercised too (hence the 5-node rook nodeset).
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-5nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-compute-kit.yaml
+    vars:
+      # Besides installing cert-manager, this also makes the Envoy Gateway
+      # terminate TLS: it adds the HTTPS:443 listener to the gateway and
+      # creates the gateway-tls server certificate (see the deploy-env role
+      # public_endpoints.yaml tasks).
+      cert_manager_setup: true
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_openstack_client_tls: true
+      # Also deploy Ceph + cinder + horizon (gated tasks in deploy-compute-kit)
+      # so their nginx TLS sidecars are exercised by this job.
+      cinder_enabled: true
+      horizon_enabled: true
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "tls-gateway-and-sidecar.yaml"
+        - "mariadb-tls.yaml"
+        - "messaging-tls.yaml"
+
+- job:
+    name: openstack-helm-compute-kit-dpdk-2026-1-ubuntu_noble
+    description: |
+      Run the openstack-helm compute-kit job with DPDK enabled.
+      We use single node environment to run this job which means
+      that the job only tests that QEMU and OVS-DPDK are working
+      together. The job does not assume having specific DPDK hardware.
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-1node-32GB-ubuntu_noble
+    pre-run:
+      - playbooks/enable-hugepages.yaml
+      - playbooks/prepare-hosts.yaml
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-compute-kit.yaml
+    vars:
+      hugepages:
+        enabled: true
+        size: "2M"
+        number: 2048
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+        - "dpdk.yaml"
+    files:
+      - ^roles/.*
+      - ^openvswitch/.*
+      - ^nova/.*
+      - ^neutron/.*
+
+- job:
+    name: openstack-helm-compute-kit-ovn-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-compute-kit.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+        - "ovn.yaml"
+    files:
+      - ^ovn/.*
+      - ^openvswitch/.*
+      - ^playbooks/deploy-compute-kit\.yaml
+
+- job:
+    name: openstack-helm-freezer-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-freezer.yaml
+    vars:
+      osh_openstack_release: "2026.1"
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^freezer/.*
+      - ^playbooks/deploy-freezer\.yaml
+
+- job:
+    name: openstack-helm-horizon-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-1node-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-horizon.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+      osh_values_overrides_horizon:
+        - "logo.yaml"
+    files:
+      - ^horizon/.*
+      - ^playbooks/deploy-horizon\.yaml
+
+- job:
+    name: openstack-helm-manila-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-5nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-manila.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^manila/.*
+      - ^playbooks/deploy-manila\.yaml
+      - ^tools/deployment/component/manila/.*
+
+- job:
+    name: openstack-helm-mariadb-operator-2026-1-ubuntu_noble
+    description: |
+      Run the compute kit with its databases provisioned declaratively.
+      mariadb-operator reconciles the Database, User, Grant and Connection
+      custom resources declared by each chart's mariadb-operator.yaml value
+      override, and materializes every service's connection string into a
+      secret which the service projects into its config directory. This
+      replaces both the mariadb chart and the per-chart db-init jobs: the
+      database is a single operator-managed MariaDB instance, not a Galera
+      cluster.
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-mariadb-operator.yaml
+      - playbooks/deploy-compute-kit.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      # Makes deploy-compute-kit skip the mariadb chart: the database is
+      # already there, created by deploy-mariadb-operator.
+      mariadb_operator_enabled: true
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+        - "mariadb-operator.yaml"
+
+- job:
+    name: openstack-helm-octavia-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-4nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-octavia.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+
+- job:
+    name: openstack-helm-skyline-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-skyline.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^skyline/.*
+      - ^playbooks/deploy-skyline\.yaml
+
+- job:
+    name: openstack-helm-swift-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-swift.yaml
+    vars:
+      loopback_format: true
+      loopback_format_fs_type: ext4
+      loopback_mount: true
+      loopback_mount_path: /srv/node/loop100
+      loopback_image: "/opt/ext_vol/openstack-helm/swift-loop.img"
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^swift/.*
+      - ^playbooks/deploy-swift\.yaml
+
+- job:
+    name: openstack-helm-tacker-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-tacker.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^tacker/.*
+      - ^playbooks/deploy-tacker\.yaml
+
+- job:
+    name: openstack-helm-trove-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-5nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-trove.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^trove/.*
+      - ^playbooks/deploy-trove\.yaml
+
+- job:
+    name: openstack-helm-watcher-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-watcher.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+
+- job:
+    name: openstack-helm-zaqar-2026-1-ubuntu_noble
+    parent: openstack-helm-deploy
+    nodeset: openstack-helm-3nodes-ubuntu_noble
+    run:
+      - playbooks/deploy-env.yaml
+      - playbooks/deploy-zaqar.yaml
+    vars:
+      osh_openstack_client_image_tag: "2026.1-ubuntu_noble"
+      osh_values_overrides:
+        - "2026.1-ubuntu_noble.yaml"
+        - "gateway.yaml"
+    files:
+      - ^zaqar/.*
+      - ^playbooks/deploy-zaqar\.yaml
+...
