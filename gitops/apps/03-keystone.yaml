@@ -10,17 +10,14 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: keystone
-      helm:
-        releaseName: keystone
-        valueFiles:
-          - $upstream/values_overrides/keystone/2025.1-ubuntu_noble.yaml
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/keystone
+    helm:
+      releaseName: keystone
+      valueFiles:
+        - ../values_overrides/keystone/2025.1-ubuntu_noble.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
