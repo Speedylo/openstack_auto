@@ -36,9 +36,9 @@ spec:
   # by hand if this ever moves to a different VM/IP (e.g. another
   # full rebuild, as happened once already in this project).
   source:
-    repoURL: https://opendev.org/openstack/openstack-helm.git
-    targetRevision: master
-    path: ceph-adapter-rook
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/ceph-adapter-rook
     helm:
       releaseName: ceph-adapter-rook
       parameters:
