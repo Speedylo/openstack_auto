@@ -9,3 +9,40 @@ conf:
       novncproxy_base_url: http://novnc.openstack.internal/vnc_auto.html
     vnc:
       novncproxy_base_url: http://novnc.openstack.internal/vnc_auto.html
+
+# Envoy Gateway API exposure: public endpoint reachable via the pinned
+# nodePort 30080 (see gitops/manifests/envoy-gateway-config/gateway.yaml).
+# Only the OSAPI compute endpoint is exposed here -- metadata is
+# internal-only and novnc/serial/spice proxies already have their own
+# working ingress-nginx routes (novnc.openstack.internal), so they're
+# deliberately not duplicated as Gateway routes.
+endpoints:
+  compute:
+    host_fqdn_override:
+      public:
+        host: nova.openstack.internal
+    port:
+      api:
+        public: 30080
+
+extraObjects:
+  nova_route_osapi:
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: nova-route-osapi
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      hostnames:
+        - "{{ .Values.endpoints.compute.host_fqdn_override.public.host }}"
+      parentRefs:
+        - name: gateway-default
+          namespace: envoy-gateway-system
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: nova-api
+              port: 8774
