@@ -10,17 +10,14 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: placement
-      helm:
-        releaseName: placement
-        valueFiles:
-          - $upstream/values_overrides/placement/2025.1-ubuntu_noble.yaml
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/placement
+    helm:
+      releaseName: placement
+      valueFiles:
+        - ../values_overrides/placement/2025.1-ubuntu_noble.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack

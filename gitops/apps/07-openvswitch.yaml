@@ -1,8 +1,7 @@
 ---
 # Same situation as memcached (see 02-memcached.yaml comment):
 # values_overrides/openvswitch/2025.1-ubuntu_noble.yaml doesn't exist
-# in the repo for this chart -- confirmed via ComparisonError. Chart
-# defaults only, no override source.
+# in the repo for this chart. Chart defaults only, no valueFiles.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -15,9 +14,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://opendev.org/openstack/openstack-helm.git
-    targetRevision: master
-    path: openvswitch
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/openvswitch
     helm:
       releaseName: openvswitch
   destination:
