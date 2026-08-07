@@ -4,6 +4,25 @@ volume:
   class_name: general
   size: 10Gi
 
+# Single-worker uwsgi can't answer /healthcheck while synchronously writing
+# a large image upload to disk. Default failureThreshold (3, ~30s) kills
+# glance-api mid-upload; raise it to survive multi-hundred-MB uploads.
+pod:
+  probes:
+    api:
+      glance-api:
+        readiness:
+          params:
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+        liveness:
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+
 # Envoy Gateway API exposure: public endpoint reachable via the pinned
 # nodePort 30080 (see gitops/manifests/envoy-gateway-config/gateway.yaml).
 endpoints:
