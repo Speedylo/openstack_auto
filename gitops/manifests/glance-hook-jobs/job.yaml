@@ -45,11 +45,14 @@ spec:
             - |
               set -e
               apk add --no-cache git >/dev/null
-              git clone --depth 1 --branch master \
-                https://github.com/openstack/openstack-helm.git /tmp/openstack-helm
-              cd /tmp/openstack-helm/glance
-              helm dependency build >/dev/null 2>&1 || true
-              helm template glance . --namespace openstack --set storage=pvc > /shared/rendered.yaml
+              git clone --depth 1 --branch main \
+                https://github.com/Speedylo/openstack_auto.git /tmp/repo
+              cd /tmp/repo/gitops/charts/openstack-helm/glance
+              helm template glance . --namespace openstack \
+                --values ../values_overrides/glance/2025.1-ubuntu_noble.yaml \
+                --values ../../../values/glance-local.yaml \
+                --set storage=pvc \
+                > /shared/rendered.yaml
           volumeMounts:
             - name: shared
               mountPath: /shared
