@@ -10,20 +10,17 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: rabbitmq
-      helm:
-        releaseName: rabbitmq
-        valueFiles:
-          - $upstream/values_overrides/rabbitmq/2025.1-ubuntu_noble.yaml
-        parameters:
-          - name: pod.replicas.server
-            value: "1"
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/rabbitmq
+    helm:
+      releaseName: rabbitmq
+      valueFiles:
+        - ../values_overrides/rabbitmq/2025.1-ubuntu_noble.yaml
+      parameters:
+        - name: pod.replicas.server
+          value: "1"
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack

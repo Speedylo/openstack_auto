@@ -10,24 +10,18 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: mariadb
-      helm:
-        releaseName: mariadb
-        valueFiles:
-          - $upstream/values_overrides/mariadb/2025.1-ubuntu_noble.yaml
-          - $local/gitops/values/mariadb-local.yaml
-        parameters:
-          - name: pod.replicas.server
-            value: "1"
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
-    - repoURL: "git@github.com:Speedylo/openstack_auto.git"
-      targetRevision: "main"
-      ref: local
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/mariadb
+    helm:
+      releaseName: mariadb
+      valueFiles:
+        - ../values_overrides/mariadb/2025.1-ubuntu_noble.yaml
+        - ../../../values/mariadb-local.yaml
+      parameters:
+        - name: pod.replicas.server
+          value: "1"
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
