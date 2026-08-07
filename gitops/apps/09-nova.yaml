@@ -10,26 +10,20 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: nova
-      helm:
-        releaseName: nova
-        valueFiles:
-          - $upstream/values_overrides/nova/2025.1-ubuntu_noble.yaml
-          - $local/gitops/values/nova-local.yaml
-        parameters:
-          - name: bootstrap.wait_for_computes.enabled
-            value: "true"
-          - name: conf.ceph.enabled
-            value: "true"
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
-    - repoURL: "git@github.com:Speedylo/openstack_auto.git"
-      targetRevision: "main"
-      ref: local
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/nova
+    helm:
+      releaseName: nova
+      valueFiles:
+        - ../values_overrides/nova/2025.1-ubuntu_noble.yaml
+        - ../../../values/nova-local.yaml
+      parameters:
+        - name: bootstrap.wait_for_computes.enabled
+          value: "true"
+        - name: conf.ceph.enabled
+          value: "true"
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
