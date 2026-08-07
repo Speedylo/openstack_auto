@@ -10,17 +10,14 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      path: heat
-      helm:
-        releaseName: heat
-        valueFiles:
-          - $upstream/values_overrides/heat/2025.1-ubuntu_noble.yaml
-    - repoURL: https://opendev.org/openstack/openstack-helm.git
-      targetRevision: master
-      ref: upstream
+  source:
+    repoURL: git@github.com:Speedylo/openstack_auto.git
+    targetRevision: main
+    path: gitops/charts/openstack-helm/heat
+    helm:
+      releaseName: heat
+      valueFiles:
+        - ../values_overrides/heat/2025.1-ubuntu_noble.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
