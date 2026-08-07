@@ -20,6 +20,13 @@ spec:
         externalTrafficPolicy: Cluster
         annotations:
           metallb.universe.tf/loadBalancerIPs: "172.24.128.100"
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                - port: 80
+                  nodePort: 30080
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
