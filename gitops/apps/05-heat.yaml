@@ -18,6 +18,7 @@ spec:
       releaseName: heat
       valueFiles:
         - ../values_overrides/heat/2025.1-ubuntu_noble.yaml
+        - ../../../values/heat-local.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack

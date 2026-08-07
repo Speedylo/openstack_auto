@@ -36,6 +36,7 @@ spec:
               cd /tmp/repo/gitops/charts/openstack-helm/cinder
               helm template cinder . --namespace openstack \
                 --values ../values_overrides/cinder/2025.1-ubuntu_noble.yaml \
+                --values ../../../values/cinder-local.yaml \
                 > /shared/rendered.yaml
           volumeMounts:
             - name: shared

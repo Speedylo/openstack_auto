@@ -36,6 +36,7 @@ spec:
               cd /tmp/repo/gitops/charts/openstack-helm/keystone
               helm template keystone . --namespace openstack \
                 --values ../values_overrides/keystone/2025.1-ubuntu_noble.yaml \
+                --values ../../../values/keystone-local.yaml \
                 > /shared/rendered.yaml
           volumeMounts:
             - name: shared

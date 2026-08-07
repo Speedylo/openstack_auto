@@ -36,6 +36,7 @@ spec:
               cd /tmp/repo/gitops/charts/openstack-helm/heat
               helm template heat . --namespace openstack \
                 --values ../values_overrides/heat/2025.1-ubuntu_noble.yaml \
+                --values ../../../values/heat-local.yaml \
                 > /shared/rendered.yaml
           volumeMounts:
             - name: shared

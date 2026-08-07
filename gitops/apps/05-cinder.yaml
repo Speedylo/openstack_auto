@@ -27,6 +27,7 @@ spec:
       releaseName: cinder
       valueFiles:
         - ../values_overrides/cinder/2025.1-ubuntu_noble.yaml
+        - ../../../values/cinder-local.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack

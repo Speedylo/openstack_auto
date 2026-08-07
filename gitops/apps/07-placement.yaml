@@ -18,6 +18,7 @@ spec:
       releaseName: placement
       valueFiles:
         - ../values_overrides/placement/2025.1-ubuntu_noble.yaml
+        - ../../../values/placement-local.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: openstack
