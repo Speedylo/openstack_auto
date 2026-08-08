@@ -9,15 +9,25 @@
 # instead of re-wiping storage or duplicating config lines.
 #
 # Scope: host kernel tuning, systemd persistence services,
-# k3s, Docker, Helm, and the openstack-helm workspace/repo.
-# Also includes cluster-dns: a self-skipping Phase-8 DNS handoff
-# (systemd-resolved -> CoreDNS) that no-ops until the cluster's
-# CoreDNS is actually up, so it's safe to leave in every run.
+# k3s, and Docker. Also includes cluster-dns: a self-skipping
+# Phase-8 DNS handoff (systemd-resolved -> CoreDNS) that no-ops
+# until the cluster's CoreDNS is actually up, so it's safe to
+# leave in every run.
 # Chart deployment (Phases 4-9) is NOT run imperatively here —
 # the argocd role installs Argo CD and applies a root-app
 # (App-of-Apps) pointed at gitops/apps/ in this same repo, which
 # converges MetalLB, Envoy Gateway, ingress-nginx, Rook-Ceph, and
 # the OpenStack-Helm chart set declaratively from git.
+#
+# No host-level Helm workspace/plugin/repo setup: the original
+# script's `helm osh`/openstack-helm-plugin approach (and its
+# `helm repo add openstack-helm https://tarballs.opendev.org/...`)
+# is fully superseded by vendoring — gitops/charts/openstack-helm/
+# ships pre-built helm-toolkit-*.tgz per chart, and every Argo CD
+# Application/hook-job sources from this repo, not a host-cloned
+# copy. That opendev.org clone would fail on a fresh VM today
+# anyway (Anubis anti-bot blocks unauthenticated clones — see
+# CLAUDE.md's Vendoring section).
 # ==========================================================
 
 - name: Bootstrap OpenStack-Helm host
@@ -29,7 +39,6 @@
     ceph_loop_size_gb: 20
     kube_user: "{{ ansible_user }}"
     kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
-    workspace_dir: "/home/{{ ansible_user }}/openstack-helm-workspace"
     k3s_version: "v1.35.6+k3s1"
     provider_bridge_interface: dummy0
     public_egress_interface: enp3s0
@@ -41,7 +50,6 @@
     - openstack-persistence
     - k3s
     - docker
-    - helm-workspace
     - cluster-dns
     - argocd
     # argocd installs Argo CD and applies the root-app (App-of-Apps),

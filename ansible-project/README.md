@@ -64,7 +64,6 @@ ansible/
     ├── openstack-persistence/       # loop device, boot/shutdown systemd units, network plumbing
     ├── k3s/                         # k3s install, custom unit, kubeconfig
     ├── docker/                      # Docker install, group membership
-    ├── helm-workspace/              # Helm repos, openstack-helm-plugin, git clone
     └── cluster-dns/                 # Phase 8: systemd-resolved → CoreDNS handoff (self-skipping)
 ```
 
