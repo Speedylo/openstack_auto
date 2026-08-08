@@ -1,3 +1,17 @@
+# Ceph pool replication: single-OSD lab cluster, so cinder.volumes
+# must be size 1 (chart default is 3, which can never be satisfied
+# here and causes a permanent HEALTH_WARN: 32 pgs degraded/undersized).
+# storage-init's ensure_pool unconditionally re-applies this value on
+# EVERY run, not just on first pool creation (see
+# cinder/templates/bin/_storage-init.sh.tpl) -- a live `ceph osd pool
+# set` fix alone gets silently reverted the next cinder-storage-init
+# re-render, which is why this needs to be a values override instead.
+conf:
+  ceph:
+    pools:
+      cinder.volumes:
+        replication: 1
+
 # Envoy Gateway API exposure: public endpoint reachable via the pinned
 # nodePort 30080 (see gitops/manifests/envoy-gateway-config/gateway.yaml).
 endpoints:
