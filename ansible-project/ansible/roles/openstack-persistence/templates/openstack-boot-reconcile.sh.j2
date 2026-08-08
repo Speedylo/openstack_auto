@@ -109,11 +109,21 @@ reconcile_stuck_pods() {
   # and give normally-starting pods a fair chance to come up on their
   # own before we consider them "stuck".
   sleep 120
-  # Only nudge pods older than this many seconds — a pod that started
-  # 20s ago and is still in Init is probably just booting normally,
-  # not stuck. Something still in Init after this long on a cold boot
-  # is the stale-dependency-snapshot problem we keep hitting.
-  MIN_AGE=240
+  # Pods still Pending/Init get a generous age floor -- they may
+  # legitimately still be waiting on a dependency that's about to
+  # resolve. Pods already Running but never reaching Ready get a much
+  # shorter floor: a container whose process is up but whose app
+  # failed to load (e.g. placement-api's uwsgi after a DB connection
+  # attempt that lost a race against MariaDB) won't self-heal by
+  # waiting longer -- it just logs errors forever, since a failed
+  # *readiness* probe never triggers a kubelet restart (only liveness
+  # does). Confirmed live 2026-08-08: placement-api's pod was only
+  # ~10s old at this sweep's evaluation moment, so the old single
+  # MIN_AGE=240 gate skipped it as "probably just booting" -- it then
+  # hit a MariaDB connection-refused seconds later and sat wedged for
+  # the rest of the day since nothing ever re-checked it.
+  MIN_AGE_PENDING=240
+  MIN_AGE_RUNNING=60
   now=$(date +%s)
   kubectl get pods -n openstack \
     -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{" "}{.metadata.creationTimestamp}{" "}{.status.containerStatuses[0].ready}{"\n"}{end}' 2>/dev/null | \
@@ -125,10 +135,25 @@ reconcile_stuck_pods() {
     esac
     # Never touch already-ready pods.
     [ "$ready" = "true" ] && continue
-    # Age gate: skip anything younger than MIN_AGE.
+    # mariadb-server-0 has its own dedicated tc.log-aware recovery in
+    # reconcile_mariadb (step 1) -- nudging it again here blindly, with
+    # no tc.log cleanup, just re-triggers a second, unhandled MariaDB
+    # outage later in the boot sequence. Confirmed live 2026-08-08:
+    # this generic sweep deleted/recreated mariadb-server-0 at
+    # 10:29:52, well after step 1 had already declared it ready at
+    # 10:27:24, and that second unhandled outage is exactly what
+    # placement-api's DB connection failed against seconds later.
+    # Never touch it here.
+    [ "$name" = "mariadb-server-0" ] && continue
+    # Age gate: skip anything younger than its phase's threshold.
     created_epoch=$(date -d "$created" +%s 2>/dev/null || echo "$now")
     age=$(( now - created_epoch ))
-    [ "$age" -lt "$MIN_AGE" ] && continue
+    if [ "$phase" = "Running" ]; then
+      min_age=$MIN_AGE_RUNNING
+    else
+      min_age=$MIN_AGE_PENDING
+    fi
+    [ "$age" -lt "$min_age" ] && continue
     # Old + not ready + not finished = stuck. Nudge it.
     kubectl delete pod -n openstack "$name" 2>/dev/null \
       && log "  nudged $name (phase=$phase, age=${age}s)"
